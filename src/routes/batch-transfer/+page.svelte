@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { walletStore, connectWallet } from '$lib/wallet';
-	import { sepolia, holesky } from 'viem/chains';
+	import { sepolia } from 'viem/chains';
 	import { batchTransfer } from '$lib/batchTransfer';
 	import { chainConfigs, currentChainConfig } from '$lib/chainConfig';
 	import { parseEther, type Address } from 'viem';
@@ -60,12 +60,12 @@
 	// Check if connected to the correct chain and handle network changes
 	$: {
 		if ($walletStore.isConnected && currentChain && window?.ethereum?.chainId !== `0x${currentChain.id.toString(16)}`) {
-			switchNetwork(currentChain.name === 'Sepolia' ? sepolia : holesky);
+			switchNetwork(sepolia);
 		}
 	}
 
-	// Function to switch network
-	function switchNetwork(targetChain: typeof sepolia | typeof holesky) {
+	// Function to switch network to Sepolia
+	function switchNetwork(targetChain: typeof sepolia) {
 		if (window.ethereum) {
 			window.ethereum
 				.request({
@@ -81,9 +81,7 @@
 								{
 									chainId: `0x${targetChain.id.toString(16)}`,
 									chainName: targetChain.name,
-									rpcUrls: [targetChain === holesky ? 
-										`https://eth-holesky.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}` : 
-										`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`],
+									rpcUrls: [`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`],
 									nativeCurrency: {
 										name: 'ETH',
 										symbol: 'ETH',
@@ -399,9 +397,9 @@ contract BatchCallDelegation {
 					<p class="mb-4 text-gray-600">Please approve the network switch in your wallet</p>
 					<button
 						class="rounded-md bg-blue-400 px-4 py-2 font-medium text-white transition-colors duration-200 hover:bg-blue-500"
-						on:click={() => switchNetwork(currentChain === sepolia ? sepolia : holesky)}
+						on:click={() => switchNetwork(sepolia)}
 					>
-						Switch to {currentChain.name}
+						Switch to Sepolia
 					</button>
 				</div>
 			{:else if !isContractDeployed}

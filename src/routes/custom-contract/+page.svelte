@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { walletStore, connectWallet } from '$lib/wallet';
-	import { sepolia, holesky } from 'viem/chains';
+	import { sepolia } from 'viem/chains';
 	import { chainConfigs, currentChainConfig } from '$lib/chainConfig';
 	import { parseEther, type Address, custom } from 'viem';
 	import { onMount } from 'svelte';
@@ -62,12 +62,12 @@
 	// Check if connected to the correct chain and handle network changes
 	$: {
 		if ($walletStore.isConnected && currentChain && window?.ethereum?.chainId !== `0x${currentChain.id.toString(16)}`) {
-			switchNetwork(currentChain.name === 'Sepolia' ? sepolia : holesky);
+			switchNetwork(sepolia);
 		}
 	}
 
-	// Function to switch network
-	function switchNetwork(targetChain: typeof sepolia | typeof holesky) {
+	// Function to switch network to Sepolia
+	function switchNetwork(targetChain: typeof sepolia) {
 		if (window.ethereum) {
 			window.ethereum
 				.request({
@@ -83,9 +83,7 @@
 								{
 									chainId: `0x${targetChain.id.toString(16)}`,
 									chainName: targetChain.name,
-									rpcUrls: [targetChain === holesky ? 
-										`https://eth-holesky.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}` : 
-										`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`],
+									rpcUrls: [`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`],
 									nativeCurrency: {
 										name: 'ETH',
 										symbol: 'ETH',

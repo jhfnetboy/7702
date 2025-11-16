@@ -39,9 +39,9 @@ The real power tool! Test EIP-7702 with *any* contract of your choice. Just past
 
 ## Features
 
-- 🔌 Supports both Sepolia and Holesky testnets
+- 🔌 Sepolia testnet support
 
-- 💼 MetaMask and other web3 wallet support (once they ship it)
+- 💼 MetaMask and other web3 wallet support
 
 ## Live Demo
 
@@ -72,9 +72,8 @@ npm run dev
 
 ## Contract Deployment
 
-The BatchCallDelegation contract is deployed at:
+The BatchCallDelegation contract is deployed on Sepolia at:
 - Sepolia: `0x6987E30398b2896B5118ad1076fb9f58825a6f1a`
-- Holesky: `0x979dd1ab4a7e3b3370b1daceec8b4198f97e0d6f`
 
 To deploy to a different network:
 ```bash
