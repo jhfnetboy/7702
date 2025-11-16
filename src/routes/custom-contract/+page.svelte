@@ -823,9 +823,6 @@
 			} else if (chainId === 11155111) {
 				// Sepolia
 				apiUrl = 'https://api-sepolia.etherscan.io/api';
-			} else if (chainId === 17000) {
-				// Holesky
-				apiUrl = 'https://api-holesky.etherscan.io/api';
 			} else {
 				throw new Error(`Unsupported chain ID: ${chainId}`);
 			}
