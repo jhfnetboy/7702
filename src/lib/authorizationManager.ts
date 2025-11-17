@@ -15,7 +15,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
-import { signAuthorization as viemSignAuthorization } from 'viem/experimental';
 
 // Get configuration from environment variables
 const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
@@ -135,7 +134,7 @@ export async function signAuthorization(
 
     // Step 1: EOA signs the authorization
     console.log('Step 1: Requesting authorization signature from EOA...');
-    const authorization = await viemSignAuthorization(eoaWalletClient, {
+    const authorization = await eoaWalletClient.signAuthorization({
       account: eoaAddress,
       contractAddress: delegationContract
     });
@@ -197,7 +196,7 @@ export async function revokeAuthorization(
 
     // Step 1: EOA signs the authorization to zero address
     console.log('Step 1: Requesting revocation signature from EOA...');
-    const authorization = await viemSignAuthorization(eoaWalletClient, {
+    const authorization = await eoaWalletClient.signAuthorization({
       account: eoaAddress,
       contractAddress: ZERO_ADDRESS
     });
