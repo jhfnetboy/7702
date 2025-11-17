@@ -14,8 +14,8 @@
 
   // State management
   let isConnected = false;
-  let isConnecting = false;
   let connectedAddress: Address | null = null;
+  let eoaPrivateKeyInput = '';  // Required for signing authorization (Viem limitation)
   let authStatus: AuthorizationStatus | null = null;
   let isCheckingStatus = false;
   let delegationContractInput = '';
@@ -23,46 +23,27 @@
   let statusMessage = '';
   let errorMessage = '';
   let txHash: Hex | null = null;
+  let showPrivateKeyInput = false;
 
   // Initialize on mount
   onMount(() => {
     // Set default delegation contract
     delegationContractInput = getDefaultDelegationContract();
-
-    // Check if already connected
-    checkExistingConnection();
   });
 
   /**
-   * Check if MetaMask is already connected
+   * Connect with MetaMask - for viewing account only
+   * Note: Due to Viem limitations, EOA private key is still required for signing
    */
-  async function checkExistingConnection() {
-    if (!window.ethereum) return;
-
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      if (accounts.length > 0) {
-        connectedAddress = accounts[0] as Address;
-        isConnected = true;
-        await checkStatus();
-      }
-    } catch (error) {
-      console.error('Error checking existing connection:', error);
-    }
-  }
-
-  /**
-   * Connect to MetaMask
-   */
-  async function connectWallet() {
+  async function connectMetaMask() {
     if (!window.ethereum) {
       errorMessage = 'MetaMask is not installed. Please install MetaMask to continue.';
       return;
     }
 
     try {
-      isConnecting = true;
       errorMessage = '';
+      statusMessage = 'Connecting to MetaMask...';
 
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
@@ -71,22 +52,24 @@
       if (accounts.length > 0) {
         connectedAddress = accounts[0] as Address;
         isConnected = true;
+        statusMessage = '';
         await checkStatus();
       }
     } catch (error: any) {
-      console.error('Error connecting wallet:', error);
-      errorMessage = error.message || 'Failed to connect wallet';
-    } finally {
-      isConnecting = false;
+      console.error('Error connecting MetaMask:', error);
+      errorMessage = error.message || 'Failed to connect MetaMask';
+      statusMessage = '';
     }
   }
 
   /**
-   * Disconnect wallet
+   * Disconnect
    */
-  function disconnectWallet() {
+  function disconnect() {
     connectedAddress = null;
     isConnected = false;
+    eoaPrivateKeyInput = '';
+    showPrivateKeyInput = false;
     authStatus = null;
     statusMessage = '';
     errorMessage = '';
@@ -119,21 +102,27 @@
    * Sign authorization for delegation
    */
   async function handleSignAuthorization() {
-    if (!connectedAddress || !delegationContractInput) return;
+    if (!eoaPrivateKeyInput || !delegationContractInput) return;
 
     try {
       isProcessing = true;
       errorMessage = '';
       txHash = null;
-      statusMessage = 'Requesting signature from MetaMask...';
+      statusMessage = 'Signing authorization...';
 
       // Validate contract address format
       if (!/^0x[a-fA-F0-9]{40}$/.test(delegationContractInput)) {
         throw new Error('Invalid contract address format');
       }
 
+      // Prepare private key
+      let privateKey = eoaPrivateKeyInput.trim();
+      if (!privateKey.startsWith('0x')) {
+        privateKey = `0x${privateKey}`;
+      }
+
       const hash = await signAuthorization(
-        connectedAddress,
+        privateKey as Hex,
         delegationContractInput as Address
       );
 
@@ -147,11 +136,7 @@
       }, 3000);
     } catch (error: any) {
       console.error('Error signing authorization:', error);
-      if (error.message?.includes('User rejected')) {
-        errorMessage = 'Transaction rejected by user';
-      } else {
-        errorMessage = error.message || 'Failed to sign authorization';
-      }
+      errorMessage = error.message || 'Failed to sign authorization';
       statusMessage = '';
     } finally {
       isProcessing = false;
@@ -162,7 +147,7 @@
    * Revoke authorization
    */
   async function handleRevokeAuthorization() {
-    if (!connectedAddress) return;
+    if (!eoaPrivateKeyInput) return;
 
     // Confirm before revoking
     const confirmed = confirm(
@@ -175,9 +160,15 @@
       isProcessing = true;
       errorMessage = '';
       txHash = null;
-      statusMessage = 'Requesting revocation signature from MetaMask...';
+      statusMessage = 'Signing revocation...';
 
-      const hash = await revokeAuthorization(connectedAddress);
+      // Prepare private key
+      let privateKey = eoaPrivateKeyInput.trim();
+      if (!privateKey.startsWith('0x')) {
+        privateKey = `0x${privateKey}`;
+      }
+
+      const hash = await revokeAuthorization(privateKey as Hex);
 
       txHash = hash;
       statusMessage = 'Revocation signed successfully! Waiting for confirmation...';
@@ -189,32 +180,13 @@
       }, 3000);
     } catch (error: any) {
       console.error('Error revoking authorization:', error);
-      if (error.message?.includes('User rejected')) {
-        errorMessage = 'Transaction rejected by user';
-      } else {
-        errorMessage = error.message || 'Failed to revoke authorization';
-      }
+      errorMessage = error.message || 'Failed to revoke authorization';
       statusMessage = '';
     } finally {
       isProcessing = false;
     }
   }
 
-  // Listen for account changes
-  if (typeof window !== 'undefined' && window.ethereum) {
-    window.ethereum.on('accountsChanged', (accounts: string[]) => {
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else {
-        connectedAddress = accounts[0] as Address;
-        checkStatus();
-      }
-    });
-
-    window.ethereum.on('chainChanged', () => {
-      window.location.reload();
-    });
-  }
 </script>
 
 <svelte:head>
@@ -239,30 +211,28 @@
 
         <!-- Connection Status -->
         {#if !isConnected}
-          <div class="text-center py-8">
-            <div class="mb-4">
+          <div class="py-8">
+            <div class="mb-4 text-center">
               <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <h2 class="text-lg font-medium text-gray-900 mb-2">Connect Your Wallet</h2>
-            <p class="text-gray-500 mb-6">
-              Connect MetaMask to manage EIP-7702 authorizations
+            <h2 class="text-lg font-medium text-gray-900 mb-2 text-center">Connect Your EOA</h2>
+            <p class="text-gray-500 mb-6 text-center">
+              Connect with MetaMask to manage EIP-7702 authorizations
             </p>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <p class="text-sm text-yellow-800">
+                <strong>Note:</strong> Due to Viem limitations, you'll need to provide your EOA private key when signing authorizations. MetaMask cannot sign EIP-7702 authorizations directly.
+              </p>
+            </div>
+
             <button
-              on:click={connectWallet}
-              disabled={isConnecting}
-              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              on:click={connectMetaMask}
+              class="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              {#if isConnecting}
-                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Connecting...
-              {:else}
-                Connect MetaMask
-              {/if}
+              Connect MetaMask
             </button>
           </div>
         {:else}
@@ -279,7 +249,7 @@
                   </p>
                 </div>
                 <button
-                  on:click={disconnectWallet}
+                  on:click={disconnect}
                   class="text-sm text-red-600 hover:text-red-700 font-medium"
                 >
                   Disconnect
@@ -374,10 +344,27 @@
                         </div>
                       {/if}
 
-                      <div class="mt-6">
+                      <div class="mt-6 space-y-4">
+                        <!-- EOA Private Key Input for Revocation -->
+                        <div>
+                          <label for="eoa-private-key-revoke" class="block text-sm font-medium text-green-900 mb-2">
+                            EOA Private Key <span class="text-red-600">*</span>
+                          </label>
+                          <input
+                            id="eoa-private-key-revoke"
+                            type="password"
+                            bind:value={eoaPrivateKeyInput}
+                            placeholder="0x..."
+                            class="w-full px-4 py-2 border border-green-300 rounded-md focus:ring-red-500 focus:border-red-500 font-mono text-sm bg-white"
+                          />
+                          <p class="mt-2 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                            ⚠️ <strong>Required for signing revocation:</strong> Your private key is needed to sign the revocation. The relay account pays all gas fees.
+                          </p>
+                        </div>
+
                         <button
                           on:click={handleRevokeAuthorization}
-                          disabled={isProcessing}
+                          disabled={isProcessing || !eoaPrivateKeyInput}
                           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {#if isProcessing}
@@ -405,6 +392,23 @@
                   </p>
 
                   <div class="space-y-4">
+                    <!-- EOA Private Key Input -->
+                    <div>
+                      <label for="eoa-private-key" class="block text-sm font-medium text-gray-700 mb-2">
+                        EOA Private Key <span class="text-red-600">*</span>
+                      </label>
+                      <input
+                        id="eoa-private-key"
+                        type="password"
+                        bind:value={eoaPrivateKeyInput}
+                        placeholder="0x..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                      />
+                      <p class="mt-2 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                        ⚠️ <strong>Required for signing:</strong> Due to Viem limitations, MetaMask cannot sign EIP-7702 authorizations. Your private key is used locally for signing only. The relay account pays all gas fees.
+                      </p>
+                    </div>
+
                     <div>
                       <label for="contract-address" class="block text-sm font-medium text-gray-700 mb-2">
                         Delegation Contract Address
@@ -423,7 +427,7 @@
 
                     <button
                       on:click={handleSignAuthorization}
-                      disabled={isProcessing || !delegationContractInput}
+                      disabled={isProcessing || !delegationContractInput || !eoaPrivateKeyInput}
                       class="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {#if isProcessing}

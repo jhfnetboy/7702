@@ -105,37 +105,37 @@ export async function checkAuthorizationStatus(
 /**
  * Sign an EIP-7702 authorization for an EOA
  *
- * This function allows an EOA (connected via MetaMask) to sign an authorization
+ * This function creates an account from a private key, signs an authorization
  * that delegates execution to a contract. The transaction is executed and paid for
  * by a relay account.
  *
- * @param eoaAddress - The EOA address that will sign the authorization
+ * @param eoaPrivateKey - The EOA private key that will sign the authorization
  * @param delegationContract - The contract address to delegate to
  * @returns Transaction hash
  */
 export async function signAuthorization(
-  eoaAddress: Address,
+  eoaPrivateKey: Hex,
   delegationContract: Address
 ): Promise<Hex> {
   try {
-    if (!window.ethereum) {
-      throw new Error('MetaMask is not installed');
-    }
-
     if (!relayAccount) {
       throw new Error('Relay account not configured. Please set VITE_RELAY_PRIVATE_KEY in .env file');
     }
 
-    // Create a wallet client for the EOA (via MetaMask)
+    // Create account from private key
+    const eoaAccount = privateKeyToAccount(eoaPrivateKey);
+    console.log('EOA account:', eoaAccount.address);
+
+    // Create a wallet client for signing the authorization
     const eoaWalletClient = createWalletClient({
+      account: eoaAccount,
       chain: CHAIN_CONFIG.chain,
-      transport: custom(window.ethereum)
+      transport: http(CHAIN_CONFIG.rpcUrl)
     });
 
     // Step 1: EOA signs the authorization
-    console.log('Step 1: Requesting authorization signature from EOA...');
+    console.log('Step 1: Signing authorization with EOA...');
     const authorization = await eoaWalletClient.signAuthorization({
-      account: eoaAddress,
       contractAddress: delegationContract
     });
 
@@ -152,10 +152,9 @@ export async function signAuthorization(
     // Send a transaction that includes the authorization
     // This transaction will set the code on the EOA
     const hash = await relayWalletClient.sendTransaction({
-      to: eoaAddress,
+      to: eoaAccount.address,
       value: 0n,
       authorizationList: [authorization],
-      // Optional: add data if you want to call a function immediately
       data: '0x' as Hex
     });
 
@@ -170,17 +169,13 @@ export async function signAuthorization(
 /**
  * Revoke an EIP-7702 authorization by setting the code to the zero address
  *
- * @param eoaAddress - The EOA address that wants to revoke authorization
+ * @param eoaPrivateKey - The EOA private key that wants to revoke authorization
  * @returns Transaction hash
  */
 export async function revokeAuthorization(
-  eoaAddress: Address
+  eoaPrivateKey: Hex
 ): Promise<Hex> {
   try {
-    if (!window.ethereum) {
-      throw new Error('MetaMask is not installed');
-    }
-
     if (!relayAccount) {
       throw new Error('Relay account not configured. Please set VITE_RELAY_PRIVATE_KEY in .env file');
     }
@@ -188,16 +183,20 @@ export async function revokeAuthorization(
     // The zero address - authorizing this effectively revokes the delegation
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
 
-    // Create a wallet client for the EOA (via MetaMask)
+    // Create account from private key
+    const eoaAccount = privateKeyToAccount(eoaPrivateKey);
+    console.log('EOA account:', eoaAccount.address);
+
+    // Create a wallet client for signing the authorization
     const eoaWalletClient = createWalletClient({
+      account: eoaAccount,
       chain: CHAIN_CONFIG.chain,
-      transport: custom(window.ethereum)
+      transport: http(CHAIN_CONFIG.rpcUrl)
     });
 
     // Step 1: EOA signs the authorization to zero address
-    console.log('Step 1: Requesting revocation signature from EOA...');
+    console.log('Step 1: Signing revocation with EOA...');
     const authorization = await eoaWalletClient.signAuthorization({
-      account: eoaAddress,
       contractAddress: ZERO_ADDRESS
     });
 
@@ -212,7 +211,7 @@ export async function revokeAuthorization(
     });
 
     const hash = await relayWalletClient.sendTransaction({
-      to: eoaAddress,
+      to: eoaAccount.address,
       value: 0n,
       authorizationList: [authorization],
       data: '0x' as Hex
