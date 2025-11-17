@@ -3,8 +3,8 @@
   import type { Address, Hex } from 'viem';
   import {
     checkAuthorizationStatus,
-    signAuthorization,
-    revokeAuthorization,
+    signAuthorizationWithMetaMask,
+    revokeAuthorizationWithMetaMask,
     getDefaultDelegationContract,
     getTransactionUrl,
     getAddressUrl,
@@ -15,7 +15,6 @@
   // State management
   let isConnected = false;
   let connectedAddress: Address | null = null;
-  let eoaPrivateKeyInput = '';  // Required for signing authorization (Viem limitation)
   let authStatus: AuthorizationStatus | null = null;
   let isCheckingStatus = false;
   let delegationContractInput = '';
@@ -23,7 +22,6 @@
   let statusMessage = '';
   let errorMessage = '';
   let txHash: Hex | null = null;
-  let showPrivateKeyInput = false;
 
   // Initialize on mount
   onMount(() => {
@@ -68,8 +66,6 @@
   function disconnect() {
     connectedAddress = null;
     isConnected = false;
-    eoaPrivateKeyInput = '';
-    showPrivateKeyInput = false;
     authStatus = null;
     statusMessage = '';
     errorMessage = '';
@@ -99,30 +95,24 @@
   }
 
   /**
-   * Sign authorization for delegation
+   * Sign authorization for delegation using MetaMask
    */
   async function handleSignAuthorization() {
-    if (!eoaPrivateKeyInput || !delegationContractInput) return;
+    if (!connectedAddress || !delegationContractInput) return;
 
     try {
       isProcessing = true;
       errorMessage = '';
       txHash = null;
-      statusMessage = 'Signing authorization...';
+      statusMessage = 'Requesting signature from MetaMask...';
 
       // Validate contract address format
       if (!/^0x[a-fA-F0-9]{40}$/.test(delegationContractInput)) {
         throw new Error('Invalid contract address format');
       }
 
-      // Prepare private key
-      let privateKey = eoaPrivateKeyInput.trim();
-      if (!privateKey.startsWith('0x')) {
-        privateKey = `0x${privateKey}`;
-      }
-
-      const hash = await signAuthorization(
-        privateKey as Hex,
+      const hash = await signAuthorizationWithMetaMask(
+        connectedAddress,
         delegationContractInput as Address
       );
 
@@ -144,10 +134,10 @@
   }
 
   /**
-   * Revoke authorization
+   * Revoke authorization using MetaMask
    */
   async function handleRevokeAuthorization() {
-    if (!eoaPrivateKeyInput) return;
+    if (!connectedAddress) return;
 
     // Confirm before revoking
     const confirmed = confirm(
@@ -160,15 +150,9 @@
       isProcessing = true;
       errorMessage = '';
       txHash = null;
-      statusMessage = 'Signing revocation...';
+      statusMessage = 'Requesting signature from MetaMask...';
 
-      // Prepare private key
-      let privateKey = eoaPrivateKeyInput.trim();
-      if (!privateKey.startsWith('0x')) {
-        privateKey = `0x${privateKey}`;
-      }
-
-      const hash = await revokeAuthorization(privateKey as Hex);
+      const hash = await revokeAuthorizationWithMetaMask(connectedAddress);
 
       txHash = hash;
       statusMessage = 'Revocation signed successfully! Waiting for confirmation...';
@@ -221,12 +205,6 @@
             <p class="text-gray-500 mb-6 text-center">
               Connect with MetaMask to manage EIP-7702 authorizations
             </p>
-
-            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-              <p class="text-sm text-yellow-800">
-                <strong>Note:</strong> Due to Viem limitations, you'll need to provide your EOA private key when signing authorizations. MetaMask cannot sign EIP-7702 authorizations directly.
-              </p>
-            </div>
 
             <button
               on:click={connectMetaMask}
@@ -344,27 +322,10 @@
                         </div>
                       {/if}
 
-                      <div class="mt-6 space-y-4">
-                        <!-- EOA Private Key Input for Revocation -->
-                        <div>
-                          <label for="eoa-private-key-revoke" class="block text-sm font-medium text-green-900 mb-2">
-                            EOA Private Key <span class="text-red-600">*</span>
-                          </label>
-                          <input
-                            id="eoa-private-key-revoke"
-                            type="password"
-                            bind:value={eoaPrivateKeyInput}
-                            placeholder="0x..."
-                            class="w-full px-4 py-2 border border-green-300 rounded-md focus:ring-red-500 focus:border-red-500 font-mono text-sm bg-white"
-                          />
-                          <p class="mt-2 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                            ⚠️ <strong>Required for signing revocation:</strong> Your private key is needed to sign the revocation. The relay account pays all gas fees.
-                          </p>
-                        </div>
-
+                      <div class="mt-6">
                         <button
                           on:click={handleRevokeAuthorization}
-                          disabled={isProcessing || !eoaPrivateKeyInput}
+                          disabled={isProcessing}
                           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {#if isProcessing}
@@ -392,23 +353,6 @@
                   </p>
 
                   <div class="space-y-4">
-                    <!-- EOA Private Key Input -->
-                    <div>
-                      <label for="eoa-private-key" class="block text-sm font-medium text-gray-700 mb-2">
-                        EOA Private Key <span class="text-red-600">*</span>
-                      </label>
-                      <input
-                        id="eoa-private-key"
-                        type="password"
-                        bind:value={eoaPrivateKeyInput}
-                        placeholder="0x..."
-                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                      />
-                      <p class="mt-2 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                        ⚠️ <strong>Required for signing:</strong> Due to Viem limitations, MetaMask cannot sign EIP-7702 authorizations. Your private key is used locally for signing only. The relay account pays all gas fees.
-                      </p>
-                    </div>
-
                     <div>
                       <label for="contract-address" class="block text-sm font-medium text-gray-700 mb-2">
                         Delegation Contract Address
@@ -427,7 +371,7 @@
 
                     <button
                       on:click={handleSignAuthorization}
-                      disabled={isProcessing || !delegationContractInput || !eoaPrivateKeyInput}
+                      disabled={isProcessing || !delegationContractInput}
                       class="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {#if isProcessing}

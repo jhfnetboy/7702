@@ -103,18 +103,17 @@ export async function checkAuthorizationStatus(
 }
 
 /**
- * Sign an EIP-7702 authorization for an EOA
+ * Sign an EIP-7702 authorization using MetaMask (EIP-712)
  *
- * This function creates an account from a private key, signs an authorization
- * that delegates execution to a contract. The transaction is executed and paid for
- * by a relay account.
+ * This function uses MetaMask to sign an EIP-7702 authorization via EIP-712 typed data.
+ * The signed authorization is then sent by the relay account to pay gas fees.
  *
- * @param eoaPrivateKey - The EOA private key that will sign the authorization
+ * @param eoaAddress - The EOA address (from MetaMask)
  * @param delegationContract - The contract address to delegate to
  * @returns Transaction hash
  */
-export async function signAuthorization(
-  eoaPrivateKey: Hex,
+export async function signAuthorizationWithMetaMask(
+  eoaAddress: Address,
   delegationContract: Address
 ): Promise<Hex> {
   try {
@@ -122,27 +121,71 @@ export async function signAuthorization(
       throw new Error('Relay account not configured. Please set VITE_RELAY_PRIVATE_KEY in .env file');
     }
 
-    // Create account from private key
-    const eoaAccount = privateKeyToAccount(eoaPrivateKey);
-    console.log('EOA account:', eoaAccount.address);
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
 
-    // Create a wallet client for signing the authorization
-    const eoaWalletClient = createWalletClient({
-      account: eoaAccount,
-      chain: CHAIN_CONFIG.chain,
-      transport: http(CHAIN_CONFIG.rpcUrl)
+    console.log('Step 1: Getting nonce for EOA...');
+    // Get the nonce for the EOA
+    const nonce = await publicClient.getTransactionCount({
+      address: eoaAddress
     });
 
-    // Step 1: EOA signs the authorization
-    console.log('Step 1: Signing authorization with EOA...');
-    const authorization = await eoaWalletClient.signAuthorization({
-      contractAddress: delegationContract
-    });
+    console.log('Step 2: Creating EIP-712 typed data for authorization...');
+    // EIP-7702 Authorization EIP-712 domain and types
+    const domain = {
+      name: 'EIP-7702',
+      version: '1',
+      chainId: CHAIN_CONFIG.chain.id
+    };
 
-    console.log('Authorization signed:', authorization);
+    const types = {
+      Authorization: [
+        { name: 'chainId', type: 'uint256' },
+        { name: 'address', type: 'address' },
+        { name: 'nonce', type: 'uint256' }
+      ]
+    };
 
-    // Step 2: Relay account submits the transaction with the authorization
-    console.log('Step 2: Relay account submitting transaction...');
+    const message = {
+      chainId: CHAIN_CONFIG.chain.id,
+      address: delegationContract,
+      nonce: BigInt(nonce)
+    };
+
+    console.log('Step 3: Requesting signature from MetaMask...');
+    // Request signature from MetaMask using EIP-712
+    const signature = await window.ethereum.request({
+      method: 'eth_signTypedData_v4',
+      params: [
+        eoaAddress,
+        JSON.stringify({
+          domain,
+          types,
+          primaryType: 'Authorization',
+          message
+        })
+      ]
+    }) as Hex;
+
+    console.log('Authorization signed:', signature);
+
+    // Parse signature into r, s, v components
+    const r = `0x${signature.slice(2, 66)}` as Hex;
+    const s = `0x${signature.slice(66, 130)}` as Hex;
+    const v = parseInt(signature.slice(130, 132), 16);
+
+    // Construct authorization object for transaction
+    const authorization = {
+      chainId: CHAIN_CONFIG.chain.id,
+      address: delegationContract,
+      nonce: BigInt(nonce),
+      r,
+      s,
+      yParity: v === 27 ? 0 : 1
+    };
+
+    console.log('Step 4: Relay account submitting transaction...');
     const relayWalletClient = createWalletClient({
       account: relayAccount,
       chain: CHAIN_CONFIG.chain,
@@ -152,7 +195,7 @@ export async function signAuthorization(
     // Send a transaction that includes the authorization
     // This transaction will set the code on the EOA
     const hash = await relayWalletClient.sendTransaction({
-      to: eoaAccount.address,
+      to: eoaAddress,
       value: 0n,
       authorizationList: [authorization],
       data: '0x' as Hex
@@ -167,43 +210,90 @@ export async function signAuthorization(
 }
 
 /**
- * Revoke an EIP-7702 authorization by setting the code to the zero address
+ * Revoke an EIP-7702 authorization using MetaMask (EIP-712)
  *
- * @param eoaPrivateKey - The EOA private key that wants to revoke authorization
+ * This function uses MetaMask to sign a revocation by authorizing the zero address.
+ * The relay account pays the gas fees.
+ *
+ * @param eoaAddress - The EOA address (from MetaMask)
  * @returns Transaction hash
  */
-export async function revokeAuthorization(
-  eoaPrivateKey: Hex
+export async function revokeAuthorizationWithMetaMask(
+  eoaAddress: Address
 ): Promise<Hex> {
   try {
     if (!relayAccount) {
       throw new Error('Relay account not configured. Please set VITE_RELAY_PRIVATE_KEY in .env file');
     }
 
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
+
     // The zero address - authorizing this effectively revokes the delegation
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
 
-    // Create account from private key
-    const eoaAccount = privateKeyToAccount(eoaPrivateKey);
-    console.log('EOA account:', eoaAccount.address);
-
-    // Create a wallet client for signing the authorization
-    const eoaWalletClient = createWalletClient({
-      account: eoaAccount,
-      chain: CHAIN_CONFIG.chain,
-      transport: http(CHAIN_CONFIG.rpcUrl)
+    console.log('Step 1: Getting nonce for EOA...');
+    // Get the nonce for the EOA
+    const nonce = await publicClient.getTransactionCount({
+      address: eoaAddress
     });
 
-    // Step 1: EOA signs the authorization to zero address
-    console.log('Step 1: Signing revocation with EOA...');
-    const authorization = await eoaWalletClient.signAuthorization({
-      contractAddress: ZERO_ADDRESS
-    });
+    console.log('Step 2: Creating EIP-712 typed data for revocation...');
+    // EIP-7702 Authorization EIP-712 domain and types
+    const domain = {
+      name: 'EIP-7702',
+      version: '1',
+      chainId: CHAIN_CONFIG.chain.id
+    };
 
-    console.log('Revocation signed:', authorization);
+    const types = {
+      Authorization: [
+        { name: 'chainId', type: 'uint256' },
+        { name: 'address', type: 'address' },
+        { name: 'nonce', type: 'uint256' }
+      ]
+    };
 
-    // Step 2: Relay account submits the transaction
-    console.log('Step 2: Relay account submitting revocation transaction...');
+    const message = {
+      chainId: CHAIN_CONFIG.chain.id,
+      address: ZERO_ADDRESS,
+      nonce: BigInt(nonce)
+    };
+
+    console.log('Step 3: Requesting signature from MetaMask...');
+    // Request signature from MetaMask using EIP-712
+    const signature = await window.ethereum.request({
+      method: 'eth_signTypedData_v4',
+      params: [
+        eoaAddress,
+        JSON.stringify({
+          domain,
+          types,
+          primaryType: 'Authorization',
+          message
+        })
+      ]
+    }) as Hex;
+
+    console.log('Revocation signed:', signature);
+
+    // Parse signature into r, s, v components
+    const r = `0x${signature.slice(2, 66)}` as Hex;
+    const s = `0x${signature.slice(66, 130)}` as Hex;
+    const v = parseInt(signature.slice(130, 132), 16);
+
+    // Construct authorization object for transaction
+    const authorization = {
+      chainId: CHAIN_CONFIG.chain.id,
+      address: ZERO_ADDRESS,
+      nonce: BigInt(nonce),
+      r,
+      s,
+      yParity: v === 27 ? 0 : 1
+    };
+
+    console.log('Step 4: Relay account submitting revocation transaction...');
     const relayWalletClient = createWalletClient({
       account: relayAccount,
       chain: CHAIN_CONFIG.chain,
@@ -211,7 +301,7 @@ export async function revokeAuthorization(
     });
 
     const hash = await relayWalletClient.sendTransaction({
-      to: eoaAccount.address,
+      to: eoaAddress,
       value: 0n,
       authorizationList: [authorization],
       data: '0x' as Hex
