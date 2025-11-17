@@ -11,7 +11,11 @@ import {
   http,
   custom,
   type Address,
-  type Hex
+  type Hex,
+  keccak256,
+  toRlp,
+  concat,
+  numberToHex
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
@@ -103,9 +107,9 @@ export async function checkAuthorizationStatus(
 }
 
 /**
- * Sign an EIP-7702 authorization using MetaMask (EIP-712)
+ * Sign an EIP-7702 authorization using MetaMask
  *
- * This function uses MetaMask to sign an EIP-7702 authorization via EIP-712 typed data.
+ * Uses the correct EIP-7702 format: keccak256(0x05 || RLP([chain_id, address, nonce]))
  * The signed authorization is then sent by the relay account to pay gas fees.
  *
  * @param eoaAddress - The EOA address (from MetaMask)
@@ -131,41 +135,28 @@ export async function signAuthorizationWithMetaMask(
       address: eoaAddress
     });
 
-    console.log('Step 2: Creating EIP-712 typed data for authorization...');
-    // EIP-7702 Authorization EIP-712 domain and types
-    const domain = {
-      name: 'EIP-7702',
-      version: '1',
-      chainId: CHAIN_CONFIG.chain.id
-    };
+    console.log('Step 2: Constructing EIP-7702 authorization hash...');
+    // EIP-7702 format: keccak256(0x05 || RLP([chain_id, address, nonce]))
+    const chainIdHex = numberToHex(CHAIN_CONFIG.chain.id);
+    const nonceHex = numberToHex(nonce);
 
-    const types = {
-      Authorization: [
-        { name: 'chainId', type: 'uint256' },
-        { name: 'address', type: 'address' },
-        { name: 'nonce', type: 'uint256' }
-      ]
-    };
+    // RLP encode [chain_id, address, nonce]
+    const rlpEncoded = toRlp([chainIdHex, delegationContract, nonceHex]);
 
-    const message = {
-      chainId: CHAIN_CONFIG.chain.id,
-      address: delegationContract,
-      nonce: BigInt(nonce)
-    };
+    // Concatenate 0x05 magic byte with RLP encoded data
+    const authorizationData = concat(['0x05' as Hex, rlpEncoded]);
 
+    // Keccak256 hash
+    const authorizationHash = keccak256(authorizationData);
+
+    console.log('Authorization hash:', authorizationHash);
     console.log('Step 3: Requesting signature from MetaMask...');
-    // Request signature from MetaMask using EIP-712
+
+    // Request signature from MetaMask using eth_sign
+    // Note: eth_sign is deprecated but may be the only way to sign raw hashes
     const signature = await window.ethereum.request({
-      method: 'eth_signTypedData_v4',
-      params: [
-        eoaAddress,
-        JSON.stringify({
-          domain,
-          types,
-          primaryType: 'Authorization',
-          message
-        })
-      ]
+      method: 'eth_sign',
+      params: [eoaAddress, authorizationHash]
     }) as Hex;
 
     console.log('Authorization signed:', signature);
@@ -182,7 +173,7 @@ export async function signAuthorizationWithMetaMask(
       nonce: BigInt(nonce),
       r,
       s,
-      yParity: v === 27 ? 0 : 1
+      yParity: v >= 27 ? v - 27 : v
     };
 
     console.log('Step 4: Relay account submitting transaction...');
@@ -210,9 +201,9 @@ export async function signAuthorizationWithMetaMask(
 }
 
 /**
- * Revoke an EIP-7702 authorization using MetaMask (EIP-712)
+ * Revoke an EIP-7702 authorization using MetaMask
  *
- * This function uses MetaMask to sign a revocation by authorizing the zero address.
+ * Uses the correct EIP-7702 format with zero address to revoke delegation.
  * The relay account pays the gas fees.
  *
  * @param eoaAddress - The EOA address (from MetaMask)
@@ -239,41 +230,27 @@ export async function revokeAuthorizationWithMetaMask(
       address: eoaAddress
     });
 
-    console.log('Step 2: Creating EIP-712 typed data for revocation...');
-    // EIP-7702 Authorization EIP-712 domain and types
-    const domain = {
-      name: 'EIP-7702',
-      version: '1',
-      chainId: CHAIN_CONFIG.chain.id
-    };
+    console.log('Step 2: Constructing EIP-7702 revocation hash...');
+    // EIP-7702 format: keccak256(0x05 || RLP([chain_id, zero_address, nonce]))
+    const chainIdHex = numberToHex(CHAIN_CONFIG.chain.id);
+    const nonceHex = numberToHex(nonce);
 
-    const types = {
-      Authorization: [
-        { name: 'chainId', type: 'uint256' },
-        { name: 'address', type: 'address' },
-        { name: 'nonce', type: 'uint256' }
-      ]
-    };
+    // RLP encode [chain_id, zero_address, nonce]
+    const rlpEncoded = toRlp([chainIdHex, ZERO_ADDRESS, nonceHex]);
 
-    const message = {
-      chainId: CHAIN_CONFIG.chain.id,
-      address: ZERO_ADDRESS,
-      nonce: BigInt(nonce)
-    };
+    // Concatenate 0x05 magic byte with RLP encoded data
+    const authorizationData = concat(['0x05' as Hex, rlpEncoded]);
 
+    // Keccak256 hash
+    const authorizationHash = keccak256(authorizationData);
+
+    console.log('Revocation hash:', authorizationHash);
     console.log('Step 3: Requesting signature from MetaMask...');
-    // Request signature from MetaMask using EIP-712
+
+    // Request signature from MetaMask using eth_sign
     const signature = await window.ethereum.request({
-      method: 'eth_signTypedData_v4',
-      params: [
-        eoaAddress,
-        JSON.stringify({
-          domain,
-          types,
-          primaryType: 'Authorization',
-          message
-        })
-      ]
+      method: 'eth_sign',
+      params: [eoaAddress, authorizationHash]
     }) as Hex;
 
     console.log('Revocation signed:', signature);
@@ -290,7 +267,7 @@ export async function revokeAuthorizationWithMetaMask(
       nonce: BigInt(nonce),
       r,
       s,
-      yParity: v === 27 ? 0 : 1
+      yParity: v >= 27 ? v - 27 : v
     };
 
     console.log('Step 4: Relay account submitting revocation transaction...');
