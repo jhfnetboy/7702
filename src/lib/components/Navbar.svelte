@@ -40,26 +40,6 @@
           <span class="font-bold text-blue-400">EIP-7702</span> <span class="font-light">Demo</span>
         </h1>
         
-        <div class="hidden md:flex space-x-6">
-          <a 
-            href="/" 
-            class="transition-colors duration-200 {isActive('/') ? 'text-blue-400 font-medium' : 'text-gray-600 hover:text-blue-400 font-medium'}"
-          >
-            Home
-          </a>
-          <a 
-            href="/batch-transfer" 
-            class="transition-colors duration-200 {isActive('/batch-transfer') ? 'text-blue-400 font-medium' : 'text-gray-600 hover:text-blue-400 font-medium'}"
-          >
-            Batch Transfer Example
-          </a>
-          <a 
-            href="/custom-contract" 
-            class="transition-colors duration-200 {isActive('/custom-contract') ? 'text-blue-400 font-medium' : 'text-gray-600 hover:text-blue-400 font-medium'}"
-          >
-            Transaction Builder
-          </a>
-        </div>
       </div>
       
       <div class="flex items-center gap-4">
@@ -119,26 +99,8 @@
       <div class="md:hidden mt-3 pt-3 border-t border-gray-100">
         <div class="flex flex-col items-center space-y-3 pb-3">
           <NetworkSwitch />
-          <a 
-            href="/" 
-            class="py-1 {isActive('/') ? 'text-blue-400 font-medium' : 'text-gray-600 hover:text-blue-400 font-medium'}"
-          >
-            Home
-          </a>
-          <a 
-            href="/batch-transfer" 
-            class="py-1 {isActive('/batch-transfer') ? 'text-blue-400 font-medium' : 'text-gray-600 hover:text-blue-400 font-medium'}"
-          >
-            Batch Transfer Example
-          </a>
-          <a 
-            href="/custom-contract" 
-            class="py-1 {isActive('/custom-contract') ? 'text-blue-400 font-medium' : 'text-gray-600 hover:text-blue-400 font-medium'}"
-          >
-            Transaction Builder
-          </a>
         </div>
-        
+
         {#if $walletStore.isConnected && $walletStore.address}
           <div class="pt-3 border-t border-gray-100 flex flex-col space-y-2">
             <div class="text-sm text-gray-500">Connected as:</div>
