@@ -6,6 +6,9 @@ const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://eth-sepolia.g.al
 
 // Relay account - pays for the transaction
 const relayPrivateKey = import.meta.env.VITE_RELAY_PRIVATE_KEY as `0x${string}`
+if (!relayPrivateKey) {
+  throw new Error('VITE_RELAY_PRIVATE_KEY is not set in environment variables')
+}
 const relay = privateKeyToAccount(relayPrivateKey)
 
 // Public client for reading

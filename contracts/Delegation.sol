@@ -25,8 +25,9 @@ contract Delegation {
   /**
    * @dev Ping函数 - 测试后续交互
    */
-  function ping() external pure {
+  function ping() external {
     emit Log('Pong!');
+    emit Pinged();
   }
 
   /**

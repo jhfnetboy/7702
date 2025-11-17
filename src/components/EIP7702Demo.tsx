@@ -9,25 +9,62 @@ export const EIP7702Demo: React.FC = () => {
   // 地址从环境变量读取（公开）
   const relayAddress = import.meta.env.VITE_RELAY || ''
   const authorizerAddress = import.meta.env.VITE_AUTHORIZER || ''
+  const defaultContractAddress = import.meta.env.VITE_DELEGATION_CONTRACT_ADDRESS || ''
+  const defaultAuthorizerPrivateKey = import.meta.env.VITE_AUTHORIZER_PRIVATE_KEY || ''
 
   // 用户输入
-  const [contractAddress, setContractAddress] = useState<string>('')
-  const [authorizerPrivateKey, setAuthorizerPrivateKey] = useState<string>('')
+  const [contractAddress, setContractAddress] = useState<string>(defaultContractAddress)
+  const [authorizerPrivateKey, setAuthorizerPrivateKey] = useState<string>(defaultAuthorizerPrivateKey)
   const [authorizationSigned, setAuthorizationSigned] = useState(false)
   const [authorization, setAuthorization] = useState<any>(null)
 
   // 步骤状态
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [authorizedContractAddress, setAuthorizedContractAddress] = useState<string>('')
+  const [eoaAuthorized, setEoaAuthorized] = useState<boolean>(false)
+
+  // 检查 EOA 是否已授权
+  const checkEOAStatus = async () => {
+    try {
+      const { publicClient } = await import('../config/viem')
+      const { privateKeyToAccount } = await import('viem/accounts')
+
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      const code = await publicClient.getBytecode({ address: authorizer.address })
+
+      const isAuthorized = code !== undefined && code !== '0x' && code.length > 2
+      setEoaAuthorized(isAuthorized)
+
+      if (isAuthorized) {
+        console.log('✅ EOA 已授权，代码:', code)
+        setAuthorizedContractAddress(contractAddress)
+        setCurrentStep(2)
+      } else {
+        console.log('❌ EOA 未授权')
+      }
+
+      return isAuthorized
+    } catch (err) {
+      console.error('检查 EOA 状态失败:', err)
+      return false
+    }
+  }
+
+  // 组件加载时检查状态
+  useEffect(() => {
+    if (authorizerPrivateKey && contractAddress) {
+      checkEOAStatus()
+    }
+  }, [])
 
   // 步骤1: 签署授权
   const handleSignAuthorization = async () => {
     if (!contractAddress) {
-      alert('请输入合约地址')
+      console.error('错误: 请输入合约地址')
       return
     }
     if (!authorizerPrivateKey) {
-      alert('缺少授权者私钥')
+      console.error('错误: 缺少授权者私钥')
       return
     }
 
@@ -36,7 +73,20 @@ export const EIP7702Demo: React.FC = () => {
       const { privateKeyToAccount } = await import('viem/accounts')
       const { walletClient } = await import('../config/viem')
 
+      console.group('📋 步骤1: 签署授权')
+      console.log('========== 签署前的数据 ==========')
+
       const eoa = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      console.log('Authorizer EOA 账户信息:', {
+        address: eoa.address,
+        type: 'EOA Account',
+      })
+
+      console.log('签署参数:', {
+        account: eoa.address,
+        contractAddress: contractAddress,
+        chainId: 11155111, // Sepolia
+      })
 
       // 签署授权
       const auth = await walletClient.signAuthorization({
@@ -44,68 +94,222 @@ export const EIP7702Demo: React.FC = () => {
         contractAddress: contractAddress as `0x${string}`,
       })
 
+      console.log('========== 签署后的授权数据 ==========')
+      console.log('授权对象结构:', auth)
+      console.log('授权对象详细:', {
+        chainId: auth.chainId,
+        nonce: auth.nonce,
+        r: auth.r,
+        s: auth.s,
+        v: auth.v,
+      })
+      console.log('授权列表:', [auth])
+      console.log('注意: 授权对象中不包含 contractAddress，contractAddress 是在签署时的请求参数')
+      console.log('✓ 步骤1完成: 成功签署授权')
+      console.groupEnd()
+
       setAuthorization(auth)
       setAuthorizationSigned(true)
-      console.log('✓ 步骤1完成: 签署授权')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '签署授权失败'
-      alert(errorMessage)
-      console.error('Error:', err)
+      console.error('步骤1失败:', errorMessage)
+      console.error('完整错误:', err)
     }
   }
 
   // 步骤2: Relay广播交易
   const handleBroadcastTransaction = async () => {
+    // 先检查 EOA 是否已经授权
+    const isAuthorized = await checkEOAStatus()
+    if (isAuthorized) {
+      console.log('✅ EOA 已经授权，跳过步骤2，可以直接执行步骤3')
+      return
+    }
+
     if (!authorization) {
-      alert('请先签署授权')
+      const msg = '请先完成步骤1：签署授权'
+      console.error(msg)
       return
     }
 
     try {
       setCurrentStep(2)
-      const { privateKeyToAccount } = await import('viem/accounts')
-      const { walletClient } = await import('../config/viem')
       const { encodeFunctionData } = await import('viem')
+      const { walletClient } = await import('../config/viem')
       const { delegationAbi } = await import('../config/contract')
 
-      const eoa = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      console.group('📤 步骤2: Relay广播初始化交易')
+      console.log('========== 交易前的数据 ==========')
 
-      // 广播初始化交易
-      const hash = await walletClient.sendTransaction({
-        authorizationList: [authorization],
-        data: encodeFunctionData({
-          abi: delegationAbi,
-          functionName: 'initialize',
-        }),
-        to: eoa.address,
+      const encodedData = encodeFunctionData({
+        abi: delegationAbi,
+        functionName: 'initialize',
       })
 
+      // 获取 Authorizer EOA 地址
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+
+      console.log('Relay Account (walletClient):', walletClient.account?.address)
+      console.log('Authorizer EOA (to):', authorizer.address)
+      console.log('Delegation Contract:', contractAddress)
+      console.log('合约初始化调用数据:', encodedData)
+      console.log('交易参数:', {
+        from: walletClient.account?.address,
+        to: authorizer.address,
+        data: encodedData,
+        authorizationList: [authorization],
+      })
+
+      // 广播初始化交易 - Relay 发送到 Authorizer EOA 地址
+      const hash = await walletClient.sendTransaction({
+        authorizationList: [authorization],
+        data: encodedData,
+        to: authorizer.address,
+        gas: 1000000n, // 增加 gas limit
+      })
+
+      console.log('========== 交易后的响应 ==========')
+      console.log('交易哈希:', hash)
+      console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
+      console.log('交易详情:', {
+        hash: hash,
+        from: walletClient.account?.address,
+        to: authorizer.address,
+        delegationContract: contractAddress,
+        status: '已提交到链上',
+      })
+      console.log('✓ 步骤2完成: 成功广播交易')
+      console.groupEnd()
+
       setAuthorizedContractAddress(contractAddress)
-      console.log('✓ 步骤2完成: 广播交易，哈希:', hash)
+
+      // 等待交易确认后重新检查 EOA 状态
+      const { publicClient } = await import('../config/viem')
+      await publicClient.waitForTransactionReceipt({ hash })
+      await checkEOAStatus()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '广播交易失败'
-      alert(errorMessage)
-      console.error('Error:', err)
+      console.error('交易失败:', errorMessage)
+      console.error('完整错误:', err)
+    }
+  }
+
+  // 撤回授权：发送交易到 0x0000...地址
+  const handleRevokeAuthorization = async () => {
+    if (!eoaAuthorized) {
+      console.error('错误: EOA 未授权，无需撤回')
+      return
+    }
+
+    try {
+      const { encodeFunctionData } = await import('viem')
+      const { walletClient, publicClient } = await import('../config/viem')
+      const { privateKeyToAccount } = await import('viem/accounts')
+
+      console.group('🗑️ 撤回 EIP-7702 授权')
+      console.log('========== 撤回前的数据 ==========')
+
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      const zeroAddress = '0x0000000000000000000000000000000000000000'
+
+      console.log('Relay Account:', walletClient.account?.address)
+      console.log('Authorizer EOA:', authorizer.address)
+      console.log('撤回目标:', zeroAddress)
+
+      // 签署指向零地址的授权
+      const authorization = await walletClient.signAuthorization({
+        account: authorizer,
+        contractAddress: zeroAddress as `0x${string}`,
+      })
+
+      console.log('撤回授权已签署:', authorization)
+
+      // 发送交易撤回授权
+      const hash = await walletClient.sendTransaction({
+        authorizationList: [authorization],
+        to: authorizer.address,
+        gas: 100000n,
+      })
+
+      console.log('========== 撤回后的响应 ==========')
+      console.log('交易哈希:', hash)
+      console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
+
+      // 等待确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      console.log('交易状态:', receipt.status)
+      console.log('✓ 授权已撤回')
+      console.groupEnd()
+
+      // 重新检查状态并重置相关状态
+      await checkEOAStatus()
+      setAuthorizedContractAddress('')
+      setAuthorizationSigned(false)
+      setAuthorization(null)
+      setCurrentStep(0)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '撤回授权失败'
+      console.error('撤回失败:', errorMessage)
+      console.error('完整错误:', err)
     }
   }
 
   // 步骤3-4: 验证授权并执行交易
   const handleVerifyAndExecute = async () => {
-    if (!authorizedContractAddress) {
-      alert('请先完成授权')
+    if (!eoaAuthorized && !authorizedContractAddress) {
+      console.error('错误: 请先完成授权（步骤1和2），或 EOA 已授权')
       return
     }
 
     try {
       setCurrentStep(3)
+      const { encodeFunctionData } = await import('viem')
+      const { walletClient } = await import('../config/viem')
+      const { delegationAbi } = await import('../config/contract')
+
+      console.group('✅ 步骤3-4: 验证授权并执行交易')
+      console.log('========== 验证执行前的数据 ==========')
+
+      // 获取 Authorizer EOA 地址
       const { privateKeyToAccount } = await import('viem/accounts')
-      const eoa = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
-      await pingContract(eoa.address)
-      console.log('✓ 步骤3-4完成: 验证并执行交易')
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+
+      console.log('Relay Account:', walletClient.account?.address)
+      console.log('Authorizer EOA:', authorizer.address)
+      console.log('Delegation Contract:', authorizedContractAddress)
+
+      const encodedData = encodeFunctionData({
+        abi: delegationAbi,
+        functionName: 'ping',
+      })
+
+      console.log('Ping 合约调用数据:', encodedData)
+      console.log('验证参数:', {
+        from: walletClient.account?.address,
+        to: authorizer.address,
+        data: encodedData,
+        purpose: '通过委托合约调用 ping() 函数',
+      })
+
+      // 执行 ping 交易 - 发送到 Authorizer EOA
+      const hash = await pingContract(authorizer.address)
+
+      console.log('========== 验证执行后的响应 ==========')
+      console.log('Ping 交易哈希:', hash)
+      console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
+      console.log('验证结果:', {
+        hash: hash,
+        status: '已成功执行',
+        purpose: '验证授权者已成功授权 Delegation 合约',
+        note: '交易由 Relay 账户发起，但在授权者地址上执行',
+      })
+      console.log('✓ 步骤3-4完成: 已验证授权者授权了 Delegation 合约')
+      console.groupEnd()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '验证失败'
-      alert(errorMessage)
-      console.error('Error:', err)
+      console.error('步骤3失败:', errorMessage)
+      console.error('完整错误:', err)
     }
   }
 
@@ -123,6 +327,7 @@ export const EIP7702Demo: React.FC = () => {
         <div className="env-item-full">
           <label>Authorizer 账户（授权者 - 自己签署授权的EOA）:</label>
           <code className="full-key">{authorizerAddress || '未配置'}</code>
+          {eoaAuthorized && <span style={{ color: 'green', marginLeft: '10px' }}>✅ 已授权</span>}
         </div>
       </div>
 
@@ -162,6 +367,12 @@ export const EIP7702Demo: React.FC = () => {
             <p className="success-text">✓ 已授权的合约地址: {authorizedContractAddress}</p>
           )}
         </div>
+
+        <div className="form-group">
+          <button onClick={checkEOAStatus} className="btn btn-secondary">
+            🔍 检查 EOA 授权状态
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -177,10 +388,10 @@ export const EIP7702Demo: React.FC = () => {
           <p>EOA签署7702授权消息，指定要委托的合约</p>
           <button
             onClick={handleSignAuthorization}
-            disabled={authorizationSigned || !contractAddress || !authorizerPrivateKey || loading}
+            disabled={eoaAuthorized || authorizationSigned || !contractAddress || !authorizerPrivateKey || loading}
             className="btn btn-primary"
           >
-            {authorizationSigned ? '✓ 已签署' : '签署授权'}
+            {eoaAuthorized ? '✓ EOA已授权' : authorizationSigned ? '✓ 已签署' : '签署授权'}
           </button>
         </div>
 
@@ -193,10 +404,10 @@ export const EIP7702Demo: React.FC = () => {
           <p>Relay账户广播包含授权的交易到链上</p>
           <button
             onClick={handleBroadcastTransaction}
-            disabled={!authorizationSigned || !!delegationTx}
+            disabled={eoaAuthorized || !authorizationSigned || !!delegationTx}
             className="btn btn-primary"
           >
-            {delegationTx ? '✓ 已广播' : '广播交易'}
+            {eoaAuthorized ? '✓ EOA已授权' : delegationTx ? '✓ 已广播' : '广播交易'}
           </button>
           {delegationTx && (
             <div className="success-message">
@@ -216,7 +427,7 @@ export const EIP7702Demo: React.FC = () => {
           <p>验证EOA是否成功关联了Delegation合约</p>
           <button
             onClick={handleVerifyAndExecute}
-            disabled={!delegationTx || !!pingTx}
+            disabled={(!eoaAuthorized && !delegationTx) || !!pingTx}
             className="btn btn-primary"
           >
             {pingTx ? '✓ 已验证' : '验证并执行交易'}
@@ -233,12 +444,12 @@ export const EIP7702Demo: React.FC = () => {
       </div>
 
       {/* 最终结果 */}
-      {authorizedContractAddress && (
+      {(authorizedContractAddress || eoaAuthorized) && (
         <div className="result-section">
           <h3>✅ 授权完成</h3>
           <div className="result-item">
             <label>委托的合约地址:</label>
-            <code>{authorizedContractAddress}</code>
+            <code>{authorizedContractAddress || contractAddress}</code>
           </div>
           <div className="result-item">
             <label>授权者地址:</label>
@@ -248,9 +459,19 @@ export const EIP7702Demo: React.FC = () => {
             <label>中继账户地址:</label>
             <code>{relayAddress || '未配置'}</code>
           </div>
-          <button onClick={reset} className="btn btn-secondary">
-            重置演示
-          </button>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <button onClick={reset} className="btn btn-secondary">
+              重置演示
+            </button>
+            <button
+              onClick={handleRevokeAuthorization}
+              className="btn btn-secondary"
+              disabled={!eoaAuthorized}
+              style={{ backgroundColor: '#dc3545', borderColor: '#dc3545' }}
+            >
+              🗑️ 撤回授权
+            </button>
+          </div>
         </div>
       )}
 
