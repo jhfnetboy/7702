@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useEIP7702 } from '../hooks/useEIP7702'
-import { contracts, ContractType } from '../config/contract'
+import { contracts, ContractType, mockERC20Address, mockERC20Abi, sponsoredTransferV2Abi } from '../config/contract'
 import './EIP7702Demo.css'
 
 export const EIP7702Demo: React.FC = () => {
@@ -44,6 +44,15 @@ export const EIP7702Demo: React.FC = () => {
   const [batchAmounts, setBatchAmounts] = useState<string>('')
   const [batchTransferTx, setBatchTransferTx] = useState<string | null>(null)
 
+  // ERC20 相关状态 (仅 sponsoredTransferV2 合约)
+  const [assetType, setAssetType] = useState<'ETH' | 'ERC20'>('ETH')
+  const [tokenAddress, setTokenAddress] = useState<string>('')
+  const [tokenBalance, setTokenBalance] = useState<string>('0')
+  const [tokenSymbol, setTokenSymbol] = useState<string>('')
+  const [tokenDecimals, setTokenDecimals] = useState<number>(18)
+  const [erc20TransferTx, setErc20TransferTx] = useState<string | null>(null)
+  const [erc20BatchTransferTx, setErc20BatchTransferTx] = useState<string | null>(null)
+
   // 合约切换时更新地址并重置状态
   useEffect(() => {
     const newAddress = contracts[selectedContract].address
@@ -55,7 +64,21 @@ export const EIP7702Demo: React.FC = () => {
     setCurrentStep(0)
     setTransferTx(null)
     setBatchTransferTx(null)
+    setErc20TransferTx(null)
+    setErc20BatchTransferTx(null)
+
+    // V2 合约时初始化代币地址
+    if (selectedContract === 'sponsoredTransferV2' && mockERC20Address !== '0x0000000000000000000000000000000000000000') {
+      setTokenAddress(mockERC20Address)
+    }
   }, [selectedContract])
+
+  // 初始化代币地址（页面加载时）
+  useEffect(() => {
+    if (mockERC20Address !== '0x0000000000000000000000000000000000000000') {
+      setTokenAddress(mockERC20Address)
+    }
+  }, [])
 
   // 检查 EOA 是否已授权，并检测授权给了哪个合约
   const checkEOAStatus = async (): Promise<{ isAuthorized: boolean; detectedContract: ContractType | null }> => {
@@ -399,6 +422,57 @@ export const EIP7702Demo: React.FC = () => {
       setAuthorizerBalance(formatEther(balance))
     } catch (err) {
       console.error('查询余额失败:', err)
+    }
+  }
+
+  // 获取代币信息（symbol, decimals）
+  const fetchTokenInfo = async (token: string) => {
+    if (!token || token === '0x0000000000000000000000000000000000000000') return
+
+    try {
+      const { publicClient } = await import('../config/viem')
+
+      const [symbol, decimals] = await Promise.all([
+        publicClient.readContract({
+          address: token as `0x${string}`,
+          abi: mockERC20Abi,
+          functionName: 'symbol',
+        }),
+        publicClient.readContract({
+          address: token as `0x${string}`,
+          abi: mockERC20Abi,
+          functionName: 'decimals',
+        }),
+      ])
+
+      setTokenSymbol(symbol as string)
+      setTokenDecimals(Number(decimals))
+    } catch (err) {
+      console.error('获取代币信息失败:', err)
+    }
+  }
+
+  // 获取代币余额
+  const fetchTokenBalance = async () => {
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') return
+
+    try {
+      const { publicClient } = await import('../config/viem')
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const { formatUnits } = await import('viem')
+
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+
+      const balance = await publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: mockERC20Abi,
+        functionName: 'balanceOf',
+        args: [authorizer.address],
+      })
+
+      setTokenBalance(formatUnits(balance as bigint, tokenDecimals))
+    } catch (err) {
+      console.error('查询代币余额失败:', err)
     }
   }
 
