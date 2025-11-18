@@ -3,7 +3,7 @@ import { useEIP7702 } from '../hooks/useEIP7702'
 import './EIP7702Demo.css'
 
 export const EIP7702Demo: React.FC = () => {
-  const { initializeContract, pingContract, loading, error, delegationTx, pingTx, getTransactionLink, reset } =
+  const { initializeContract, pingContract, loading, error, delegationTx, pingTx, getTransactionLink } =
     useEIP7702()
 
   // 地址从环境变量读取（公开）
@@ -459,10 +459,7 @@ export const EIP7702Demo: React.FC = () => {
             <label>中继账户地址:</label>
             <code>{relayAddress || '未配置'}</code>
           </div>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-            <button onClick={reset} className="btn btn-secondary">
-              重置演示
-            </button>
+          <div style={{ marginTop: '20px' }}>
             <button
               onClick={handleRevokeAuthorization}
               className="btn btn-secondary"
