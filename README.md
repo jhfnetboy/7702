@@ -102,6 +102,21 @@ pnpm run test:headed  # 运行 Playwright 测试 (显示浏览器)
 - **部署交易**: `0xfabd75b4bc546707add8f69a5fecf6bada09184efaafd38909112b9c910bea0e`
 - **验证状态**: ✅ 已验证，包含 `initialize()` 和 `ping()` 函数
 
+## 📚 深度文档
+
+- **[EIP-7702 核心概念解析](./docs/EIP-7702-EXPLANATION.md)**
+  - Relay 角色详解 (vs ERC-4337 Bundler)
+  - SponsoredTransferDelegation 合约逐行解析
+  - 完整执行流程图
+  - 核心优势和应用场景
+
+- **[Gas 成本详细分析](./docs/GAS-ANALYSIS.md)**
+  - 传统 EOA vs EIP-7702 批量转账
+  - 详细 gas 成本分解 (每一项都有计算)
+  - **重要更正**: 实际节约约 37%，而非 60%
+  - 不同数量的成本对比表
+  - 实际应用建议
+
 ## 测试
 
 项目包含 72 个 E2E 测试用例:
