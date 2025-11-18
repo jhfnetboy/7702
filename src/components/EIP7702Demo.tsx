@@ -709,29 +709,31 @@ export const EIP7702Demo: React.FC = () => {
           )}
         </div>
 
-        {/* 步骤3: 验证授权 */}
-        <div className={`step-card ${currentStep >= 3 ? 'active' : ''}`}>
-          <div className="step-header">
-            <span className="step-number">3</span>
-            <h4>验证授权</h4>
-          </div>
-          <p>验证EOA是否成功关联了Delegation合约</p>
-          <button
-            onClick={handleVerifyAndExecute}
-            disabled={(!eoaAuthorized && !delegationTx) || !!pingTx}
-            className="btn btn-primary"
-          >
-            {pingTx ? '✓ 已验证' : '验证并执行交易'}
-          </button>
-          {pingTx && (
-            <div className="success-message">
-              <p>✓ 验证成功！EOA已成功授权Delegation合约</p>
-              <a href={getTransactionLink(pingTx)} target="_blank" rel="noopener noreferrer" className="tx-link">
-                查看交易: {pingTx.substring(0, 10)}...
-              </a>
+        {/* 步骤3: 验证授权 - 仅 Basic Delegation */}
+        {selectedContract === 'delegation' && (
+          <div className={`step-card ${currentStep >= 3 ? 'active' : ''}`}>
+            <div className="step-header">
+              <span className="step-number">3</span>
+              <h4>验证授权</h4>
             </div>
-          )}
-        </div>
+            <p>验证EOA是否成功关联了Delegation合约</p>
+            <button
+              onClick={handleVerifyAndExecute}
+              disabled={(!eoaAuthorized && !delegationTx) || !!pingTx}
+              className="btn btn-primary"
+            >
+              {pingTx ? '✓ 已验证' : '验证并执行交易'}
+            </button>
+            {pingTx && (
+              <div className="success-message">
+                <p>✓ 验证成功！EOA已成功授权Delegation合约</p>
+                <a href={getTransactionLink(pingTx)} target="_blank" rel="noopener noreferrer" className="tx-link">
+                  查看交易: {pingTx.substring(0, 10)}...
+                </a>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 转账测试区域 - 仅 sponsoredTransfer 合约且已授权后显示 */}
