@@ -35,6 +35,11 @@ export const EIP7702Demo: React.FC = () => {
   const [authorizerBalance, setAuthorizerBalance] = useState<string>('0')
   const [transferTx, setTransferTx] = useState<string | null>(null)
 
+  // 批量转账状态
+  const [batchRecipients, setBatchRecipients] = useState<string>('')
+  const [batchAmounts, setBatchAmounts] = useState<string>('')
+  const [batchTransferTx, setBatchTransferTx] = useState<string | null>(null)
+
   // 合约切换时更新地址并重置状态
   useEffect(() => {
     const newAddress = contracts[selectedContract].address
@@ -45,6 +50,7 @@ export const EIP7702Demo: React.FC = () => {
     setAuthorizedContractAddress('')
     setCurrentStep(0)
     setTransferTx(null)
+    setBatchTransferTx(null)
   }, [selectedContract])
 
   // 检查 EOA 是否已授权
@@ -438,6 +444,83 @@ export const EIP7702Demo: React.FC = () => {
     }
   }
 
+  // 执行批量转账
+  const handleBatchTransfer = async () => {
+    if (!batchRecipients || !batchAmounts) {
+      console.error('错误: 请输入接收地址列表和金额列表')
+      return
+    }
+
+    try {
+      const { encodeFunctionData, parseEther, createWalletClient, http } = await import('viem')
+      const { walletClient, publicClient } = await import('../config/viem')
+      const { sponsoredTransferAbi } = await import('../config/contract')
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const { sepolia } = await import('viem/chains')
+
+      // 解析输入
+      const recipients = batchRecipients.split(',').map((addr) => addr.trim() as `0x${string}`)
+      const amounts = batchAmounts.split(',').map((amount) => parseEther(amount.trim()))
+
+      if (recipients.length !== amounts.length) {
+        console.error('错误: 接收地址数量和金额数量不匹配')
+        return
+      }
+
+      const isSelfMode = gasPaymentMode === 'self'
+      const modeText = isSelfMode ? 'Authorizer 自己' : 'Relay'
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+
+      console.group(`💸💸 批量转账 (Gas: ${modeText})`)
+      console.log('========== 批量转账前的数据 ==========')
+      console.log('From (Authorizer):', authorizer.address)
+      console.log('Recipients:', recipients)
+      console.log('Amounts (ETH):', batchAmounts.split(','))
+      console.log('Total Recipients:', recipients.length)
+      console.log('Gas Payer:', modeText)
+
+      // 编码 batchTransfer 调用
+      const data = encodeFunctionData({
+        abi: sponsoredTransferAbi,
+        functionName: 'batchTransfer',
+        args: [recipients, amounts],
+      })
+
+      // 根据模式选择 wallet client
+      const activeWalletClient = isSelfMode
+        ? createWalletClient({
+            account: authorizer,
+            chain: sepolia,
+            transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
+          })
+        : walletClient
+
+      // 发起批量转账交易
+      const hash = await activeWalletClient.sendTransaction({
+        to: authorizer.address, // 发送到 Authorizer EOA (合约代码在这里)
+        data,
+        gas: 300000n, // 批量转账需要更多 gas
+      })
+
+      console.log('========== 批量转账后的响应 ==========')
+      console.log('交易哈希:', hash)
+      console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
+      console.groupEnd()
+
+      setBatchTransferTx(hash)
+
+      // 等待确认后更新余额
+      await publicClient.waitForTransactionReceipt({ hash })
+      await fetchAuthorizerBalance()
+
+      console.log('✅ 批量转账成功！')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '批量转账失败'
+      console.error('批量转账失败:', errorMessage)
+      console.error('完整错误:', err)
+    }
+  }
+
   // 授权后加载余额
   useEffect(() => {
     if (eoaAuthorized && selectedContract === 'sponsoredTransfer' && authorizerPrivateKey) {
@@ -612,10 +695,10 @@ export const EIP7702Demo: React.FC = () => {
           <p>Relay账户广播包含授权的交易到链上</p>
           <button
             onClick={handleBroadcastTransaction}
-            disabled={eoaAuthorized || !authorizationSigned || !!delegationTx}
+            disabled={eoaAuthorized || !authorizationSigned || !!delegationTx || loading}
             className="btn btn-primary"
           >
-            {eoaAuthorized ? '✓ EOA已授权' : delegationTx ? '✓ 已广播' : '广播交易'}
+            {loading && !delegationTx && !eoaAuthorized ? '广播中...' : eoaAuthorized ? '✓ EOA已授权' : delegationTx ? '✓ 已广播' : '广播交易'}
           </button>
           {delegationTx && (
             <div className="success-message">
@@ -713,12 +796,71 @@ export const EIP7702Demo: React.FC = () => {
           </div>
 
           <div className="transfer-info">
-            <h4>ℹ️ 说明:</h4>
+            <h4>ℹ️ 单笔转账说明:</h4>
             <ul>
               <li>💰 转账金额从 Authorizer EOA 扣除</li>
               <li>⛽ Gas 费用由 {gasPaymentMode === 'self' ? 'Authorizer 自己' : 'Relay 账户'} 支付</li>
               <li>{gasPaymentMode === 'self' ? '🔴 您需要支付 gas 费用' : '✅ 您无需支付任何 gas 费用'}</li>
             </ul>
+          </div>
+
+          {/* 批量转账表单 */}
+          <div className="batch-transfer-form" style={{ marginTop: '30px', paddingTop: '30px', borderTop: '2px dashed #f59e0b' }}>
+            <h4 style={{ marginBottom: '16px' }}>📦 批量转账 (传统 EOA 无法一次性多笔转账)</h4>
+
+            <div className="form-group">
+              <label>接收地址列表 (用逗号分隔):</label>
+              <textarea
+                value={batchRecipients}
+                onChange={(e) => setBatchRecipients(e.target.value)}
+                placeholder="0x123...,0x456...,0x789..."
+                className="contract-address-input"
+                rows={3}
+                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+              />
+              <small style={{ color: '#78350f' }}>示例: 0xRecipient1,0xRecipient2,0xRecipient3</small>
+            </div>
+
+            <div className="form-group">
+              <label>转账金额列表 (ETH，用逗号分隔):</label>
+              <input
+                type="text"
+                value={batchAmounts}
+                onChange={(e) => setBatchAmounts(e.target.value)}
+                placeholder="0.001,0.002,0.003"
+                className="contract-address-input"
+              />
+              <small style={{ color: '#78350f' }}>示例: 0.001,0.002,0.003 (数量需与地址列表一致)</small>
+            </div>
+
+            <button
+              onClick={handleBatchTransfer}
+              className="btn btn-primary"
+              disabled={!batchRecipients || !batchAmounts || loading}
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+            >
+              💸 执行批量转账
+            </button>
+
+            {batchTransferTx && (
+              <div className="success-message">
+                <p>✅ 批量转账成功！</p>
+                <a href={`https://sepolia.etherscan.io/tx/${batchTransferTx}`} target="_blank" rel="noopener noreferrer" className="tx-link">
+                  查看交易: {batchTransferTx.substring(0, 10)}...
+                </a>
+              </div>
+            )}
+
+            <div className="transfer-info" style={{ marginTop: '16px', background: '#fef3c7', borderColor: '#fcd34d' }}>
+              <h4>🎯 批量转账核心优势:</h4>
+              <ul>
+                <li>⚡ <strong>传统 EOA</strong>: 需要发起多笔交易，每笔都要签名和支付 gas</li>
+                <li>✅ <strong>EIP-7702 + SponsoredTransfer</strong>: 一次交易完成多笔转账！</li>
+                <li>💡 通过合约代码注入，EOA 获得批量操作能力</li>
+                <li>💰 所有转账金额从 Authorizer EOA 扣除</li>
+                <li>⛽ 只需支付一次 gas (由 {gasPaymentMode === 'self' ? 'Authorizer' : 'Relay'} 支付)</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
