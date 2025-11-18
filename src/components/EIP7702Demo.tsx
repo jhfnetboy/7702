@@ -226,10 +226,16 @@ export const EIP7702Demo: React.FC = () => {
       console.group(`📤 步骤2: ${modeText}广播初始化交易`)
       console.log('========== 交易前的数据 ==========')
 
-      const encodedData = encodeFunctionData({
-        abi: delegationAbi,
-        functionName: 'initialize',
-      })
+      // 根据合约类型决定是否调用函数
+      let encodedData: `0x${string}` = '0x'
+      if (selectedContract === 'delegation') {
+        // Only Basic Delegation contract has initialize() function
+        encodedData = encodeFunctionData({
+          abi: delegationAbi,
+          functionName: 'initialize',
+        })
+      }
+      // For sponsoredTransfer and sponsoredTransferV2, just authorize without calling any function
 
       // 获取 Authorizer EOA 地址
       const { privateKeyToAccount } = await import('viem/accounts')
@@ -248,7 +254,8 @@ export const EIP7702Demo: React.FC = () => {
       console.log('交易发起账户:', activeWalletClient.account?.address)
       console.log('Authorizer EOA (to):', authorizer.address)
       console.log('Delegation Contract:', contractAddress)
-      console.log('合约初始化调用数据:', encodedData)
+      console.log('选择的合约类型:', selectedContract)
+      console.log('合约初始化调用数据:', encodedData === '0x' ? '无函数调用（仅授权）' : encodedData)
       console.log('交易参数:', {
         from: activeWalletClient.account?.address,
         to: authorizer.address,
