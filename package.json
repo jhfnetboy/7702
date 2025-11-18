@@ -13,6 +13,7 @@
     "test:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@aastar/shared-config": "0.3.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "viem": "^2.39.0"

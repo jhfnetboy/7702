@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@aastar/shared-config':
+        specifier: 0.3.3
+        version: 0.3.3
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -44,6 +47,9 @@ importers:
         version: 5.4.21(terser@5.44.1)
 
 packages:
+
+  '@aastar/shared-config@0.3.3':
+    resolution: {integrity: sha512-2OozN36Cm0X+8HiPmAWbTHR+awzmNfMu7b1x69TPhjduFARpfh2NEj6lkWk76ZWkPd/qH0zZh1BIf6gpBPW4Og==}
 
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
@@ -877,6 +883,8 @@ packages:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
 snapshots:
+
+  '@aastar/shared-config@0.3.3': {}
 
   '@adraffy/ens-normalize@1.11.1': {}
 
