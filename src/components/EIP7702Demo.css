@@ -320,6 +320,223 @@
   font-weight: 700;
 }
 
+/* 合约选择器 */
+.contract-selector-section {
+  background: white;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.contract-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contract-option {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  transition: all 0.2s;
+}
+
+.contract-option:hover {
+  border-color: #667eea;
+  background: #f3f4ff;
+}
+
+.contract-option.selected {
+  border-color: #667eea;
+  background: #eef2ff;
+}
+
+.contract-radio input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.contract-info {
+  flex: 1;
+}
+
+.contract-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.contract-description {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.contract-features {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.contract-address {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Gas 支付方式选择 */
+.gas-payment-section {
+  background: white;
+  border: 2px solid #10b981;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+}
+
+.gas-payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gas-option {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  transition: all 0.2s;
+  align-items: flex-start;
+}
+
+.gas-option:hover {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.gas-option.selected {
+  border-color: #10b981;
+  background: #d1fae5;
+}
+
+.gas-option input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.gas-option-content {
+  flex: 1;
+}
+
+.gas-option-content strong {
+  display: block;
+  font-size: 16px;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.gas-option-content p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 转账测试区域 */
+.transfer-test-section {
+  background: white;
+  border: 2px solid #f59e0b;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+}
+
+.balance-info {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.balance-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.balance-item:last-child {
+  margin-bottom: 0;
+}
+
+.balance-item label {
+  font-size: 14px;
+  color: #78350f;
+  font-weight: 600;
+  min-width: 150px;
+}
+
+.balance-item code {
+  background: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #fcd34d;
+  font-size: 14px;
+  color: #92400e;
+  flex: 1;
+}
+
+.btn-refresh {
+  padding: 4px 8px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-refresh:hover {
+  background: #d97706;
+}
+
+.transfer-form {
+  margin-bottom: 20px;
+}
+
+.transfer-info {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.transfer-info h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #075985;
+}
+
+.transfer-info ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #0c4a6e;
+}
+
+.transfer-info li {
+  margin-bottom: 4px;
+}
+
 @media (max-width: 768px) {
   .steps-flow {
     grid-template-columns: 1fr;
@@ -331,5 +548,23 @@
 
   .step-card {
     padding: 16px;
+  }
+
+  .balance-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .balance-item label {
+    min-width: auto;
+  }
+
+  .gas-option {
+    flex-direction: column;
+  }
+
+  .contract-option {
+    flex-direction: column;
   }
 }

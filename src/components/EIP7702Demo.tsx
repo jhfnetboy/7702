@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useEIP7702 } from '../hooks/useEIP7702'
+import { contracts, ContractType } from '../config/contract'
 import './EIP7702Demo.css'
 
 export const EIP7702Demo: React.FC = () => {
@@ -9,11 +10,16 @@ export const EIP7702Demo: React.FC = () => {
   // 地址从环境变量读取（公开）
   const relayAddress = import.meta.env.VITE_RELAY || ''
   const authorizerAddress = import.meta.env.VITE_AUTHORIZER || ''
-  const defaultContractAddress = import.meta.env.VITE_DELEGATION_CONTRACT_ADDRESS || ''
   const defaultAuthorizerPrivateKey = import.meta.env.VITE_AUTHORIZER_PRIVATE_KEY || ''
 
+  // 合约选择
+  const [selectedContract, setSelectedContract] = useState<ContractType>('delegation')
+  const [contractAddress, setContractAddress] = useState<string>(contracts.delegation.address)
+
+  // Gas 支付方式
+  const [gasPaymentMode, setGasPaymentMode] = useState<'self' | 'relay'>('relay')
+
   // 用户输入
-  const [contractAddress, setContractAddress] = useState<string>(defaultContractAddress)
   const [authorizerPrivateKey, setAuthorizerPrivateKey] = useState<string>(defaultAuthorizerPrivateKey)
   const [authorizationSigned, setAuthorizationSigned] = useState(false)
   const [authorization, setAuthorization] = useState<any>(null)
@@ -22,6 +28,24 @@ export const EIP7702Demo: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [authorizedContractAddress, setAuthorizedContractAddress] = useState<string>('')
   const [eoaAuthorized, setEoaAuthorized] = useState<boolean>(false)
+
+  // 转账相关状态 (仅 sponsoredTransfer 合约)
+  const [recipientAddress, setRecipientAddress] = useState<string>('')
+  const [transferAmount, setTransferAmount] = useState<string>('')
+  const [authorizerBalance, setAuthorizerBalance] = useState<string>('0')
+  const [transferTx, setTransferTx] = useState<string | null>(null)
+
+  // 合约切换时更新地址并重置状态
+  useEffect(() => {
+    const newAddress = contracts[selectedContract].address
+    setContractAddress(newAddress)
+    setAuthorizationSigned(false)
+    setAuthorization(null)
+    setEoaAuthorized(false)
+    setAuthorizedContractAddress('')
+    setCurrentStep(0)
+    setTransferTx(null)
+  }, [selectedContract])
 
   // 检查 EOA 是否已授权
   const checkEOAStatus = async () => {
@@ -86,12 +110,16 @@ export const EIP7702Demo: React.FC = () => {
         account: eoa.address,
         contractAddress: contractAddress,
         chainId: 11155111, // Sepolia
+        executor: gasPaymentMode === 'self' ? 'self' : undefined,
+        gasPaymentMode: gasPaymentMode === 'self' ? 'Authorizer 自己' : 'Relay 代付',
       })
 
       // 签署授权
+      // 如果是 self 模式，需要设置 executor: 'self'
       const auth = await walletClient.signAuthorization({
         account: eoa,
         contractAddress: contractAddress as `0x${string}`,
+        ...(gasPaymentMode === 'self' && { executor: 'self' }),
       })
 
       console.log('========== 签署后的授权数据 ==========')
@@ -134,11 +162,15 @@ export const EIP7702Demo: React.FC = () => {
 
     try {
       setCurrentStep(2)
-      const { encodeFunctionData } = await import('viem')
-      const { walletClient } = await import('../config/viem')
+      const { encodeFunctionData, createWalletClient, http } = await import('viem')
+      const { walletClient, publicClient } = await import('../config/viem')
       const { delegationAbi } = await import('../config/contract')
+      const { sepolia } = await import('viem/chains')
 
-      console.group('📤 步骤2: Relay广播初始化交易')
+      const isSelfMode = gasPaymentMode === 'self'
+      const modeText = isSelfMode ? 'Authorizer 自己' : 'Relay'
+
+      console.group(`📤 步骤2: ${modeText}广播初始化交易`)
       console.log('========== 交易前的数据 ==========')
 
       const encodedData = encodeFunctionData({
@@ -150,23 +182,33 @@ export const EIP7702Demo: React.FC = () => {
       const { privateKeyToAccount } = await import('viem/accounts')
       const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
 
-      console.log('Relay Account (walletClient):', walletClient.account?.address)
+      // 根据模式选择 wallet client
+      const activeWalletClient = isSelfMode
+        ? createWalletClient({
+            account: authorizer,
+            chain: sepolia,
+            transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
+          })
+        : walletClient
+
+      console.log('Gas 支付方式:', modeText)
+      console.log('交易发起账户:', activeWalletClient.account?.address)
       console.log('Authorizer EOA (to):', authorizer.address)
       console.log('Delegation Contract:', contractAddress)
       console.log('合约初始化调用数据:', encodedData)
       console.log('交易参数:', {
-        from: walletClient.account?.address,
+        from: activeWalletClient.account?.address,
         to: authorizer.address,
         data: encodedData,
         authorizationList: [authorization],
       })
 
-      // 广播初始化交易 - Relay 发送到 Authorizer EOA 地址
-      const hash = await walletClient.sendTransaction({
+      // 广播初始化交易 - 发送到 Authorizer EOA 地址
+      const hash = await activeWalletClient.sendTransaction({
         authorizationList: [authorization],
         data: encodedData,
         to: authorizer.address,
-        gas: 1000000n, // 增加 gas limit
+        gas: 1000000n,
       })
 
       console.log('========== 交易后的响应 ==========')
@@ -174,18 +216,18 @@ export const EIP7702Demo: React.FC = () => {
       console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
       console.log('交易详情:', {
         hash: hash,
-        from: walletClient.account?.address,
+        from: activeWalletClient.account?.address,
         to: authorizer.address,
         delegationContract: contractAddress,
+        gasPaymentMode: modeText,
         status: '已提交到链上',
       })
-      console.log('✓ 步骤2完成: 成功广播交易')
+      console.log(`✓ 步骤2完成: ${modeText}成功广播交易`)
       console.groupEnd()
 
       setAuthorizedContractAddress(contractAddress)
 
       // 等待交易确认后重新检查 EOA 状态
-      const { publicClient } = await import('../config/viem')
       await publicClient.waitForTransactionReceipt({ hash })
       await checkEOAStatus()
     } catch (err) {
@@ -313,9 +355,175 @@ export const EIP7702Demo: React.FC = () => {
     }
   }
 
+  // 查询 Authorizer 余额
+  const fetchAuthorizerBalance = async () => {
+    try {
+      const { publicClient } = await import('../config/viem')
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const { formatEther } = await import('viem')
+
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      const balance = await publicClient.getBalance({ address: authorizer.address })
+      setAuthorizerBalance(formatEther(balance))
+    } catch (err) {
+      console.error('查询余额失败:', err)
+    }
+  }
+
+  // 执行转账 (仅 sponsoredTransfer 合约)
+  const handleTransferETH = async () => {
+    if (!recipientAddress || !transferAmount) {
+      console.error('错误: 请输入接收地址和转账金额')
+      return
+    }
+
+    try {
+      const { encodeFunctionData, parseEther, createWalletClient, http } = await import('viem')
+      const { walletClient, publicClient } = await import('../config/viem')
+      const { sponsoredTransferAbi } = await import('../config/contract')
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const { sepolia } = await import('viem/chains')
+
+      const isSelfMode = gasPaymentMode === 'self'
+      const modeText = isSelfMode ? 'Authorizer 自己' : 'Relay'
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      const amount = parseEther(transferAmount)
+
+      console.group(`💸 执行转账 (Gas: ${modeText})`)
+      console.log('========== 转账前的数据 ==========')
+      console.log('From (Authorizer):', authorizer.address)
+      console.log('To (Recipient):', recipientAddress)
+      console.log('Amount:', transferAmount, 'ETH')
+      console.log('Gas Payer:', modeText)
+
+      // 编码 transferETH 调用
+      const data = encodeFunctionData({
+        abi: sponsoredTransferAbi,
+        functionName: 'transferETH',
+        args: [recipientAddress as `0x${string}`, amount],
+      })
+
+      // 根据模式选择 wallet client
+      const activeWalletClient = isSelfMode
+        ? createWalletClient({
+            account: authorizer,
+            chain: sepolia,
+            transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
+          })
+        : walletClient
+
+      // 发起转账交易
+      const hash = await activeWalletClient.sendTransaction({
+        to: authorizer.address, // 发送到 Authorizer EOA (合约代码在这里)
+        data,
+        gas: 100000n,
+      })
+
+      console.log('========== 转账后的响应 ==========')
+      console.log('交易哈希:', hash)
+      console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
+      console.groupEnd()
+
+      setTransferTx(hash)
+
+      // 等待确认后更新余额
+      await publicClient.waitForTransactionReceipt({ hash })
+      await fetchAuthorizerBalance()
+
+      console.log('✅ 转账成功！')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '转账失败'
+      console.error('转账失败:', errorMessage)
+      console.error('完整错误:', err)
+    }
+  }
+
+  // 授权后加载余额
+  useEffect(() => {
+    if (eoaAuthorized && selectedContract === 'sponsoredTransfer' && authorizerPrivateKey) {
+      fetchAuthorizerBalance()
+    }
+  }, [eoaAuthorized, selectedContract, authorizerPrivateKey])
+
   return (
     <div className="eip7702-demo">
       <h2>EIP-7702 演示应用</h2>
+
+      {/* 合约选择 */}
+      <div className="contract-selector-section">
+        <h3>🎯 选择 Delegation 合约</h3>
+        <div className="contract-options">
+          {(Object.keys(contracts) as ContractType[]).map((key) => {
+            const contract = contracts[key]
+            return (
+              <div
+                key={key}
+                className={`contract-option ${selectedContract === key ? 'selected' : ''}`}
+                onClick={() => !authorizationSigned && setSelectedContract(key)}
+                style={{ cursor: authorizationSigned ? 'not-allowed' : 'pointer' }}
+              >
+                <div className="contract-radio">
+                  <input
+                    type="radio"
+                    checked={selectedContract === key}
+                    onChange={() => setSelectedContract(key)}
+                    disabled={authorizationSigned}
+                  />
+                </div>
+                <div className="contract-info">
+                  <div className="contract-name">{contract.name}</div>
+                  <div className="contract-description">{contract.description}</div>
+                  <div className="contract-features">
+                    功能: {contract.features.join(', ')}
+                  </div>
+                  <div className="contract-address">
+                    <small>合约: {contract.address.substring(0, 10)}...</small>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Gas 支付方式选择 */}
+      <div className="gas-payment-section">
+        <h3>⛽ Gas 支付方式</h3>
+        <div className="gas-payment-options">
+          <div
+            className={`gas-option ${gasPaymentMode === 'relay' ? 'selected' : ''}`}
+            onClick={() => !authorizationSigned && setGasPaymentMode('relay')}
+            style={{ cursor: authorizationSigned ? 'not-allowed' : 'pointer' }}
+          >
+            <input
+              type="radio"
+              checked={gasPaymentMode === 'relay'}
+              onChange={() => setGasPaymentMode('relay')}
+              disabled={authorizationSigned}
+            />
+            <div className="gas-option-content">
+              <strong>Relay 代付 Gas (免 Gas 体验)</strong>
+              <p>Relay 账户发起交易并支付 gas，您无需支付任何费用</p>
+            </div>
+          </div>
+          <div
+            className={`gas-option ${gasPaymentMode === 'self' ? 'selected' : ''}`}
+            onClick={() => !authorizationSigned && setGasPaymentMode('self')}
+            style={{ cursor: authorizationSigned ? 'not-allowed' : 'pointer' }}
+          >
+            <input
+              type="radio"
+              checked={gasPaymentMode === 'self'}
+              onChange={() => setGasPaymentMode('self')}
+              disabled={authorizationSigned}
+            />
+            <div className="gas-option-content">
+              <strong>我自己支付 Gas</strong>
+              <p>使用 Authorizer 私钥发起交易，gas 从您的账户扣除</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 账户信息展示 */}
       <div className="env-config">
@@ -442,6 +650,78 @@ export const EIP7702Demo: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 转账测试区域 - 仅 sponsoredTransfer 合约且已授权后显示 */}
+      {selectedContract === 'sponsoredTransfer' && eoaAuthorized && (
+        <div className="transfer-test-section">
+          <h3>💸 转账测试 ({gasPaymentMode === 'self' ? 'Authorizer 自己付 Gas' : 'Relay 代付 Gas'})</h3>
+
+          <div className="balance-info">
+            <div className="balance-item">
+              <label>Authorizer EOA 余额:</label>
+              <code>{authorizerBalance} ETH</code>
+              <button onClick={fetchAuthorizerBalance} className="btn-refresh">
+                🔄 刷新
+              </button>
+            </div>
+            <div className="balance-item">
+              <label>Gas 支付方:</label>
+              <code>{gasPaymentMode === 'self' ? `Authorizer (${authorizerAddress})` : `Relay (${relayAddress})`}</code>
+            </div>
+          </div>
+
+          <div className="transfer-form">
+            <div className="form-group">
+              <label>接收地址 (To):</label>
+              <input
+                type="text"
+                value={recipientAddress}
+                onChange={(e) => setRecipientAddress(e.target.value)}
+                placeholder="0x..."
+                className="contract-address-input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>转账金额 (ETH):</label>
+              <input
+                type="number"
+                step="0.001"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                placeholder="0.001"
+                className="contract-address-input"
+              />
+            </div>
+
+            <button
+              onClick={handleTransferETH}
+              className="btn btn-primary"
+              disabled={!recipientAddress || !transferAmount || loading}
+            >
+              执行转账
+            </button>
+
+            {transferTx && (
+              <div className="success-message">
+                <p>✅ 转账成功！</p>
+                <a href={`https://sepolia.etherscan.io/tx/${transferTx}`} target="_blank" rel="noopener noreferrer" className="tx-link">
+                  查看交易: {transferTx.substring(0, 10)}...
+                </a>
+              </div>
+            )}
+          </div>
+
+          <div className="transfer-info">
+            <h4>ℹ️ 说明:</h4>
+            <ul>
+              <li>💰 转账金额从 Authorizer EOA 扣除</li>
+              <li>⛽ Gas 费用由 {gasPaymentMode === 'self' ? 'Authorizer 自己' : 'Relay 账户'} 支付</li>
+              <li>{gasPaymentMode === 'self' ? '🔴 您需要支付 gas 费用' : '✅ 您无需支付任何 gas 费用'}</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* 最终结果 */}
       {(authorizedContractAddress || eoaAuthorized) && (
