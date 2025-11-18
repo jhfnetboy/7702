@@ -100,7 +100,7 @@ export const EIP7702Demo: React.FC = () => {
         const contractAddr = '0x' + code.slice(8) // 0xef0100 = 8 characters
         console.log('检测到的合约地址:', contractAddr)
 
-        // 对比两个合约地址，识别是哪个
+        // 对比三个合约地址，识别是哪个
         let detected: ContractType | null = null
         if (contractAddr.toLowerCase() === contracts.delegation.address.toLowerCase()) {
           detected = 'delegation'
@@ -108,12 +108,22 @@ export const EIP7702Demo: React.FC = () => {
         } else if (contractAddr.toLowerCase() === contracts.sponsoredTransfer.address.toLowerCase()) {
           detected = 'sponsoredTransfer'
           console.log('✅ 识别为 SponsoredTransfer 合约')
+        } else if (contractAddr.toLowerCase() === contracts.sponsoredTransferV2.address.toLowerCase()) {
+          detected = 'sponsoredTransferV2'
+          console.log('✅ 识别为 SponsoredTransferV2 合约 (ETH + ERC20)')
         } else {
           console.log('⚠️ 未识别的合约地址:', contractAddr)
         }
 
         setDetectedContract(detected)
         setAuthorizedContractAddress(contractAddr)
+
+        // 自动切换到检测到的合约类型
+        if (detected && detected !== selectedContract) {
+          setSelectedContract(detected)
+          console.log(`🔄 自动切换合约选择: ${contracts[detected].name}`)
+        }
+
         setCurrentStep(3) // 跳到 Step 3 验证步骤
         return { isAuthorized: true, detectedContract: detected }
       } else {
@@ -407,6 +417,11 @@ export const EIP7702Demo: React.FC = () => {
         console.log('执行操作: 批量转账测试')
         console.log('请在下方转账测试区域进行转账操作')
         console.log('✓ 步骤4: 请使用转账功能验证授权')
+      } else if (detectedContract === 'sponsoredTransferV2') {
+        // SponsoredTransferV2: 支持 ETH + ERC20 转账
+        console.log('执行操作: ETH 或 ERC20 转账测试')
+        console.log('请在下方选择资产类型（ETH/ERC20）并进行转账操作')
+        console.log('✓ 步骤4: 请使用转账功能验证授权（支持 ERC20 代币）')
       }
 
       console.groupEnd()
