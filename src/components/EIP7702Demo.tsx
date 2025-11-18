@@ -7,6 +7,9 @@ export const EIP7702Demo: React.FC = () => {
   const { initializeContract, pingContract, loading, error, delegationTx, pingTx, getTransactionLink } =
     useEIP7702()
 
+  // Helper: 获取 Etherscan 地址链接
+  const getAddressLink = (address: string) => `https://sepolia.etherscan.io/address/${address}`
+
   // 地址从环境变量读取（公开）
   const relayAddress = import.meta.env.VITE_RELAY || ''
   const authorizerAddress = import.meta.env.VITE_AUTHORIZER || ''
@@ -175,7 +178,7 @@ export const EIP7702Demo: React.FC = () => {
   // 步骤2: Relay广播交易
   const handleBroadcastTransaction = async () => {
     // 先检查 EOA 是否已经授权
-    const isAuthorized = await checkEOAStatus()
+    const { isAuthorized } = await checkEOAStatus()
     if (isAuthorized) {
       console.log('✅ EOA 已经授权，跳过步骤2，可以直接执行步骤3')
       return
@@ -583,7 +586,16 @@ export const EIP7702Demo: React.FC = () => {
                     功能: {contract.features.join(', ')}
                   </div>
                   <div className="contract-address">
-                    <small>合约: {contract.address.substring(0, 10)}...</small>
+                    <small>合约: </small>
+                    <a
+                      href={getAddressLink(contract.address)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="address-link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {contract.address}
+                    </a>
                   </div>
                 </div>
               </div>
@@ -634,14 +646,30 @@ export const EIP7702Demo: React.FC = () => {
       {/* 账户信息展示 */}
       <div className="env-config">
         <h3>📋 账户信息</h3>
-        <div className="env-item-full">
-          <label>Relay 账户（中继 - 广播交易并支付Gas）:</label>
-          <code className="full-key">{relayAddress || '未配置'}</code>
-        </div>
-        <div className="env-item-full">
-          <label>Authorizer 账户（授权者 - 自己签署授权的EOA）:</label>
-          <code className="full-key">{authorizerAddress || '未配置'}</code>
-          {eoaAuthorized && <span style={{ color: 'green', marginLeft: '10px' }}>✅ 已授权</span>}
+        <div className="account-info-row">
+          <div className="account-info-item">
+            <label>Relay 账户（中继 - 广播交易并支付Gas）:</label>
+            <a
+              href={getAddressLink(relayAddress)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="address-link"
+            >
+              {relayAddress || '未配置'}
+            </a>
+          </div>
+          <div className="account-info-item">
+            <label>Authorizer 账户（授权者 - 自己签署授权的EOA）:</label>
+            <a
+              href={getAddressLink(authorizerAddress)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="address-link"
+            >
+              {authorizerAddress || '未配置'}
+            </a>
+            {eoaAuthorized && <span style={{ color: 'green', marginLeft: '10px' }}>✅ 已授权</span>}
+          </div>
         </div>
       </div>
 

@@ -33,6 +33,27 @@
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
 }
 
+/* Account info row layout */
+.account-info-row {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.account-info-item {
+  flex: 1;
+  min-width: 350px;
+}
+
+.account-info-item label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
 .env-item-full {
   margin-bottom: 16px;
 }
@@ -258,6 +279,20 @@
   text-decoration: underline;
 }
 
+.address-link {
+  color: #667eea;
+  text-decoration: none;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  word-break: break-all;
+  font-weight: 500;
+}
+
+.address-link:hover {
+  text-decoration: underline;
+  color: #4f46e5;
+}
+
 /* 最终结果 */
 .result-section {
   background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
@@ -342,8 +377,9 @@
 
 .contract-options {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .contract-option {
@@ -354,6 +390,8 @@
   border-radius: 8px;
   background: #f9fafb;
   transition: all 0.2s;
+  flex: 1;
+  min-width: 300px;
 }
 
 .contract-option:hover {
@@ -411,8 +449,9 @@
 
 .gas-payment-options {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .gas-option {
@@ -424,6 +463,8 @@
   background: #f9fafb;
   transition: all 0.2s;
   align-items: flex-start;
+  flex: 1;
+  min-width: 280px;
 }
 
 .gas-option:hover {
