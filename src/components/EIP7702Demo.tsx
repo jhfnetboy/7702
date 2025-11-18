@@ -409,6 +409,22 @@ export const EIP7702Demo: React.FC = () => {
       return
     }
 
+    // 验证地址格式：不能包含逗号（防止误填批量转账数据）
+    if (recipientAddress.includes(',')) {
+      const errorMsg = '❌ 单笔转账只能填写一个地址！如需转账给多个地址，请使用下方的"批量转账"功能'
+      console.error(errorMsg)
+      alert(errorMsg)
+      return
+    }
+
+    // 验证金额格式：不能包含逗号
+    if (transferAmount.includes(',')) {
+      const errorMsg = '❌ 单笔转账只能填写一个金额！如需批量转账，请使用下方的"批量转账"功能'
+      console.error(errorMsg)
+      alert(errorMsg)
+      return
+    }
+
     try {
       const { encodeFunctionData, parseEther, createWalletClient, http } = await import('viem')
       const { walletClient, publicClient } = await import('../config/viem')
@@ -841,15 +857,17 @@ export const EIP7702Demo: React.FC = () => {
           </div>
 
           <div className="transfer-form">
+            <h4 style={{ marginBottom: '16px', color: '#059669' }}>💰 单笔转账（一次转给一个地址）</h4>
             <div className="form-group">
-              <label>接收地址 (To):</label>
+              <label>接收地址 (To) - 只填写一个地址:</label>
               <input
                 type="text"
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
-                placeholder="0x..."
+                placeholder="0x... (单个地址，不能用逗号分隔)"
                 className="contract-address-input"
               />
+              <small style={{ color: '#dc2626' }}>⚠️ 只能填写一个地址！多个地址请使用下方"批量转账"</small>
             </div>
 
             <div className="form-group">
@@ -892,8 +910,12 @@ export const EIP7702Demo: React.FC = () => {
           </div>
 
           {/* 批量转账表单 */}
-          <div className="batch-transfer-form" style={{ marginTop: '30px', paddingTop: '30px', borderTop: '2px dashed #f59e0b' }}>
-            <h4 style={{ marginBottom: '16px' }}>📦 批量转账 (传统 EOA 无法一次性多笔转账)</h4>
+          <div className="batch-transfer-form" style={{ marginTop: '30px', paddingTop: '30px', borderTop: '3px solid #f59e0b', background: '#fffbeb', padding: '24px', borderRadius: '8px' }}>
+            <h4 style={{ marginBottom: '16px', color: '#d97706', fontSize: '18px' }}>📦 批量转账（一次转给多个地址）</h4>
+            <div style={{ background: '#fef3c7', border: '2px solid #fcd34d', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
+              <strong style={{ color: '#92400e' }}>⚡ EIP-7702 核心优势：</strong>
+              <span style={{ color: '#78350f' }}> 传统 EOA 需要发起多笔交易，EIP-7702 可以一次完成多笔转账！</span>
+            </div>
 
             <div className="form-group">
               <label>接收地址列表 (用逗号分隔):</label>
