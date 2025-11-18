@@ -236,6 +236,17 @@
   font-size: 12px;
 }
 
+/* 信息提示 */
+.info-message {
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  padding: 12px;
+  color: #1e40af;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
 .tx-link {
   color: #059669;
   text-decoration: none;

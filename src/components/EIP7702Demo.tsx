@@ -28,6 +28,7 @@ export const EIP7702Demo: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [authorizedContractAddress, setAuthorizedContractAddress] = useState<string>('')
   const [eoaAuthorized, setEoaAuthorized] = useState<boolean>(false)
+  const [detectedContract, setDetectedContract] = useState<ContractType | null>(null)
 
   // 转账相关状态 (仅 sponsoredTransfer 合约)
   const [recipientAddress, setRecipientAddress] = useState<string>('')
@@ -53,8 +54,8 @@ export const EIP7702Demo: React.FC = () => {
     setBatchTransferTx(null)
   }, [selectedContract])
 
-  // 检查 EOA 是否已授权
-  const checkEOAStatus = async () => {
+  // 检查 EOA 是否已授权，并检测授权给了哪个合约
+  const checkEOAStatus = async (): Promise<{ isAuthorized: boolean; detectedContract: ContractType | null }> => {
     try {
       const { publicClient } = await import('../config/viem')
       const { privateKeyToAccount } = await import('viem/accounts')
@@ -65,18 +66,38 @@ export const EIP7702Demo: React.FC = () => {
       const isAuthorized = code !== undefined && code !== '0x' && code.length > 2
       setEoaAuthorized(isAuthorized)
 
-      if (isAuthorized) {
+      if (isAuthorized && code) {
         console.log('✅ EOA 已授权，代码:', code)
-        setAuthorizedContractAddress(contractAddress)
-        setCurrentStep(2)
+
+        // EIP-7702 code 格式: 0xef0100 + 合约地址(20字节)
+        // 提取合约地址 (去掉 0xef0100 前缀，即前6个字符 + 0x)
+        const contractAddr = '0x' + code.slice(8) // 0xef0100 = 8 characters
+        console.log('检测到的合约地址:', contractAddr)
+
+        // 对比两个合约地址，识别是哪个
+        let detected: ContractType | null = null
+        if (contractAddr.toLowerCase() === contracts.delegation.address.toLowerCase()) {
+          detected = 'delegation'
+          console.log('✅ 识别为 Basic Delegation 合约')
+        } else if (contractAddr.toLowerCase() === contracts.sponsoredTransfer.address.toLowerCase()) {
+          detected = 'sponsoredTransfer'
+          console.log('✅ 识别为 SponsoredTransfer 合约')
+        } else {
+          console.log('⚠️ 未识别的合约地址:', contractAddr)
+        }
+
+        setDetectedContract(detected)
+        setAuthorizedContractAddress(contractAddr)
+        setCurrentStep(3) // 跳到 Step 3 验证步骤
+        return { isAuthorized: true, detectedContract: detected }
       } else {
         console.log('❌ EOA 未授权')
+        setDetectedContract(null)
+        return { isAuthorized: false, detectedContract: null }
       }
-
-      return isAuthorized
     } catch (err) {
       console.error('检查 EOA 状态失败:', err)
-      return false
+      return { isAuthorized: false, detectedContract: null }
     }
   }
 
@@ -303,60 +324,62 @@ export const EIP7702Demo: React.FC = () => {
     }
   }
 
-  // 步骤3-4: 验证授权并执行交易
-  const handleVerifyAndExecute = async () => {
-    if (!eoaAuthorized && !authorizedContractAddress) {
-      console.error('错误: 请先完成授权（步骤1和2），或 EOA 已授权')
+  // 步骤3: 验证授权 - 检测 EOA 授权给了哪个合约
+  const handleVerifyAuthorization = async () => {
+    if (!authorizerPrivateKey) {
+      console.error('错误: 缺少授权者私钥')
+      return
+    }
+
+    console.group('✅ 步骤3: 验证授权')
+    console.log('正在检测 EOA 授权状态...')
+
+    const { isAuthorized, detectedContract: detected } = await checkEOAStatus()
+
+    if (isAuthorized && detected) {
+      console.log('✓ 步骤3完成: 已识别授权合约类型 -', contracts[detected].name)
+    } else if (isAuthorized) {
+      console.log('⚠️ EOA 已授权，但未识别合约类型')
+    } else {
+      console.log('❌ EOA 未授权')
+    }
+
+    console.groupEnd()
+  }
+
+  // 步骤4: 执行交易 - 根据检测到的合约类型执行不同操作
+  const handleExecuteTransaction = async () => {
+    if (!detectedContract) {
+      console.error('错误: 请先验证授权（步骤3）')
       return
     }
 
     try {
-      setCurrentStep(3)
-      const { encodeFunctionData } = await import('viem')
-      const { walletClient } = await import('../config/viem')
-      const { delegationAbi } = await import('../config/contract')
-
-      console.group('✅ 步骤3-4: 验证授权并执行交易')
-      console.log('========== 验证执行前的数据 ==========')
-
-      // 获取 Authorizer EOA 地址
+      setCurrentStep(4)
       const { privateKeyToAccount } = await import('viem/accounts')
       const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
 
-      console.log('Relay Account:', walletClient.account?.address)
+      console.group('✅ 步骤4: 执行交易')
+      console.log('检测到的合约类型:', contracts[detectedContract].name)
       console.log('Authorizer EOA:', authorizer.address)
-      console.log('Delegation Contract:', authorizedContractAddress)
 
-      const encodedData = encodeFunctionData({
-        abi: delegationAbi,
-        functionName: 'ping',
-      })
+      if (detectedContract === 'delegation') {
+        // Basic Delegation: 执行 ping
+        console.log('执行操作: ping()')
+        const hash = await pingContract(authorizer.address)
+        console.log('Ping 交易哈希:', hash)
+        console.log('✓ 步骤4完成: ping 执行成功')
+      } else if (detectedContract === 'sponsoredTransfer') {
+        // SponsoredTransfer: 执行批量转账测试
+        console.log('执行操作: 批量转账测试')
+        console.log('请在下方转账测试区域进行转账操作')
+        console.log('✓ 步骤4: 请使用转账功能验证授权')
+      }
 
-      console.log('Ping 合约调用数据:', encodedData)
-      console.log('验证参数:', {
-        from: walletClient.account?.address,
-        to: authorizer.address,
-        data: encodedData,
-        purpose: '通过委托合约调用 ping() 函数',
-      })
-
-      // 执行 ping 交易 - 发送到 Authorizer EOA
-      const hash = await pingContract(authorizer.address)
-
-      console.log('========== 验证执行后的响应 ==========')
-      console.log('Ping 交易哈希:', hash)
-      console.log('交易链接:', `https://sepolia.etherscan.io/tx/${hash}`)
-      console.log('验证结果:', {
-        hash: hash,
-        status: '已成功执行',
-        purpose: '验证授权者已成功授权 Delegation 合约',
-        note: '交易由 Relay 账户发起，但在授权者地址上执行',
-      })
-      console.log('✓ 步骤3-4完成: 已验证授权者授权了 Delegation 合约')
       console.groupEnd()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '验证失败'
-      console.error('步骤3失败:', errorMessage)
+      const errorMessage = err instanceof Error ? err.message : '执行失败'
+      console.error('步骤4失败:', errorMessage)
       console.error('完整错误:', err)
     }
   }
@@ -709,28 +732,62 @@ export const EIP7702Demo: React.FC = () => {
           )}
         </div>
 
-        {/* 步骤3: 验证授权 - 仅 Basic Delegation */}
-        {selectedContract === 'delegation' && (
-          <div className={`step-card ${currentStep >= 3 ? 'active' : ''}`}>
-            <div className="step-header">
-              <span className="step-number">3</span>
-              <h4>验证授权</h4>
+        {/* 步骤3: 验证授权 - 检测合约类型 */}
+        <div className={`step-card ${currentStep >= 3 ? 'active' : ''}`}>
+          <div className="step-header">
+            <span className="step-number">3</span>
+            <h4>验证授权</h4>
+          </div>
+          <p>检测 EOA 是否已授权，并识别授权给了哪个合约</p>
+          <button
+            onClick={handleVerifyAuthorization}
+            disabled={!delegationTx || !!detectedContract}
+            className="btn btn-primary"
+          >
+            {detectedContract ? '✓ 已检测' : '检测授权状态'}
+          </button>
+          {detectedContract && (
+            <div className="success-message">
+              <p>✓ 检测成功！授权合约类型: {contracts[detectedContract].name}</p>
+              <p>合约地址: {authorizedContractAddress}</p>
             </div>
-            <p>验证EOA是否成功关联了Delegation合约</p>
-            <button
-              onClick={handleVerifyAndExecute}
-              disabled={(!eoaAuthorized && !delegationTx) || !!pingTx}
-              className="btn btn-primary"
-            >
-              {pingTx ? '✓ 已验证' : '验证并执行交易'}
-            </button>
-            {pingTx && (
-              <div className="success-message">
-                <p>✓ 验证成功！EOA已成功授权Delegation合约</p>
-                <a href={getTransactionLink(pingTx)} target="_blank" rel="noopener noreferrer" className="tx-link">
-                  查看交易: {pingTx.substring(0, 10)}...
-                </a>
-              </div>
+          )}
+        </div>
+
+        {/* 步骤4: 执行交易 - 根据检测到的合约类型执行不同操作 */}
+        {detectedContract && (
+          <div className={`step-card ${currentStep >= 4 ? 'active' : ''}`}>
+            <div className="step-header">
+              <span className="step-number">4</span>
+              <h4>执行交易</h4>
+            </div>
+            {detectedContract === 'delegation' ? (
+              <>
+                <p>执行 ping() 函数验证授权</p>
+                <button
+                  onClick={handleExecuteTransaction}
+                  disabled={!!pingTx}
+                  className="btn btn-primary"
+                >
+                  {pingTx ? '✓ 已执行 ping' : '执行 ping 交易'}
+                </button>
+                {pingTx && (
+                  <div className="success-message">
+                    <p>✓ Ping 执行成功！</p>
+                    <a href={getTransactionLink(pingTx)} target="_blank" rel="noopener noreferrer" className="tx-link">
+                      查看交易: {pingTx.substring(0, 10)}...
+                    </a>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p>SponsoredTransfer 合约已授权</p>
+                <p>请在下方"转账测试区域"执行转账操作进行验证</p>
+                <div className="info-message">
+                  <p>ℹ️ 此合约支持批量转账和余额查询功能</p>
+                </div>
+              </>
             )}
           </div>
         )}
