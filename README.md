@@ -2,7 +2,18 @@
 
 完整的 EIP-7702 演示应用，展示 EOA 账户授权和智能合约委托的完整流程。
 
-## 🎉 v1.2.1 新功能
+## 🎉 v2.1.0 新功能 - MySBT 无 Gas 转账服务
+
+- 🔐 **MySBT 身份验证**: 只有 MySBT 持有者可以使用无 Gas 转账
+- ⚡ **完全无 Gas**: 即使 EOA 没有 ETH 也能转账（Relay 代付 Gas）
+- 💎 **ETH + ERC20**: 支持原生代币和 ERC20 代币转账
+- 📦 **批量转账**: 单笔交易完成多个转账
+- 🛡️ **防滥用机制**: SBT 门槛 + 事件日志
+- ✅ **15/15 测试通过**: 全面的 Foundry 测试覆盖
+
+详见: [V2.1 完整文档](./docs/V2.1-SBT-GASLESS-SERVICE.md)
+
+## 🎉 v1.2.1 修复
 
 - 🐛 **重要修复**: 修复 SponsoredTransferV2 授权失败问题
   - 问题: 步骤2 错误调用不存在的 `initialize()` 函数导致交易 revert
@@ -124,8 +135,10 @@ pnpm tsx scripts/analyze-tx.ts <tx-hash>  # 分析交易详情和失败原因
 |------|------|------|-----------|
 | **Basic Delegation** | `0x9381bbF662e415737FC33fecC71A660A6f642928` | initialize, ping | [查看](https://sepolia.etherscan.io/address/0x9381bbF662e415737FC33fecC71A660A6f642928) |
 | **Sponsored Transfer** | `0x3bCC84C21BA32Dba8F3BE86F1E498778918e9B8F` | ETH 转账 | [查看](https://sepolia.etherscan.io/address/0x3bCC84C21BA32Dba8F3BE86F1E498778918e9B8F) |
-| **Sponsored Transfer V2** ⭐ | `0x997D16b7aF16220b3FbbA21c55dFC5bba4217B05` | ETH + ERC20 转账 | [查看](https://sepolia.etherscan.io/address/0x997D16b7aF16220b3FbbA21c55dFC5bba4217B05) |
-| **MockERC20 (TUSDC)** ⭐ | `0x202DAd7EbAC4282263174544605304500bFcbaF7` | 测试代币 | [查看](https://sepolia.etherscan.io/address/0x202DAd7EbAC4282263174544605304500bFcbaF7) |
+| **Sponsored Transfer V2** | `0x997D16b7aF16220b3FbbA21c55dFC5bba4217B05` | ETH + ERC20 转账 | [查看](https://sepolia.etherscan.io/address/0x997D16b7aF16220b3FbbA21c55dFC5bba4217B05) |
+| **Sponsored Transfer V2.1** 🔥 | 待部署 | MySBT 无 Gas 服务 | [文档](./docs/V2.1-SBT-GASLESS-SERVICE.md) |
+| **MockERC20 (TUSDC)** | `0x202DAd7EbAC4282263174544605304500bFcbaF7` | 测试代币 | [查看](https://sepolia.etherscan.io/address/0x202DAd7EbAC4282263174544605304500bFcbaF7) |
+| **MySBT** 🔐 | `0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C` | AAStar 身份 SBT | [查看](https://sepolia.etherscan.io/address/0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C) |
 
 ## 📚 深度文档
 
