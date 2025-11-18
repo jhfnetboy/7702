@@ -2,9 +2,21 @@
 
 完整的 EIP-7702 演示应用，展示 EOA 账户授权和智能合约委托的完整流程。
 
+## 🎉 v1.2.0 新功能
+
+- ⭐ **ERC20 代币支持**: 单笔和批量 ERC20 代币转账
+- ⭐ **三个合约选项**: Basic Delegation / Sponsored Transfer / **Sponsored Transfer V2 (ETH + ERC20)**
+- ⭐ **资产类型选择**: 在 V2 合约中切换 ETH 或 ERC20 转账
+- ⭐ **代币余额查询**: 实时显示 ERC20 代币余额
+- ⭐ **自动合约检测**: 自动识别 EOA 授权给了哪个合约
+- ⭐ **Foundry 测试**: 18/18 测试用例通过
+- ⭐ **已部署到 Sepolia**: MockERC20 (TUSDC) + SponsoredTransferV2
+
 ## 核心功能
 
 - ✅ **完整的 EIP-7702 工作流**: 签署授权 → 广播交易 → 验证执行
+- ✅ **ETH 转账**: 单笔和批量 ETH 转账 (Gas 由 Relay 或 Authorizer 支付)
+- ✅ **ERC20 转账**: 单笔和批量 ERC20 代币转账 (仅 V2 合约)
 - ✅ **EOA 状态检测**: 自动检测 EOA 是否已授权，智能按钮状态管理
 - ✅ **撤回授权**: 支持撤回 EIP-7702 授权，恢复 EOA 原始状态
 - ✅ **详细的控制台日志**: 每个步骤都有完整的前后数据结构输出
@@ -98,9 +110,12 @@ pnpm run test:headed  # 运行 Playwright 测试 (显示浏览器)
 
 ### Sepolia 测试网
 
-- **Delegation Contract**: `0x9381bbF662e415737FC33fecC71A660A6f642928`
-- **部署交易**: `0xfabd75b4bc546707add8f69a5fecf6bada09184efaafd38909112b9c910bea0e`
-- **验证状态**: ✅ 已验证，包含 `initialize()` 和 `ping()` 函数
+| 合约 | 地址 | 功能 | Etherscan |
+|------|------|------|-----------|
+| **Basic Delegation** | `0x9381bbF662e415737FC33fecC71A660A6f642928` | initialize, ping | [查看](https://sepolia.etherscan.io/address/0x9381bbF662e415737FC33fecC71A660A6f642928) |
+| **Sponsored Transfer** | `0x3bCC84C21BA32Dba8F3BE86F1E498778918e9B8F` | ETH 转账 | [查看](https://sepolia.etherscan.io/address/0x3bCC84C21BA32Dba8F3BE86F1E498778918e9B8F) |
+| **Sponsored Transfer V2** ⭐ | `0x997D16b7aF16220b3FbbA21c55dFC5bba4217B05` | ETH + ERC20 转账 | [查看](https://sepolia.etherscan.io/address/0x997D16b7aF16220b3FbbA21c55dFC5bba4217B05) |
+| **MockERC20 (TUSDC)** ⭐ | `0x202DAd7EbAC4282263174544605304500bFcbaF7` | 测试代币 | [查看](https://sepolia.etherscan.io/address/0x202DAd7EbAC4282263174544605304500bFcbaF7) |
 
 ## 📚 深度文档
 

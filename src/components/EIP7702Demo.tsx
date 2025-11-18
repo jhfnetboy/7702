@@ -637,12 +637,174 @@ export const EIP7702Demo: React.FC = () => {
     }
   }
 
+  // 执行 ERC20 单笔转账 (仅 sponsoredTransferV2 合约)
+  const handleTransferERC20 = async () => {
+    if (!recipientAddress || !transferAmount) {
+      console.error('错误: 请输入接收地址和转账金额')
+      return
+    }
+
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      console.error('错误: 请输入代币地址')
+      return
+    }
+
+    try {
+      const { encodeFunctionData, parseUnits, createWalletClient, http } = await import('viem')
+      const { walletClient, publicClient } = await import('../config/viem')
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const { sepolia } = await import('viem/chains')
+
+      const isSelfMode = gasPaymentMode === 'self'
+      const modeText = isSelfMode ? 'Authorizer 自己' : 'Relay'
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+      const amount = parseUnits(transferAmount, tokenDecimals)
+
+      console.group(`💎 执行 ERC20 转账 (Gas: ${modeText})`)
+      console.log('Token:', tokenSymbol, tokenAddress)
+      console.log('From (Authorizer):', authorizer.address)
+      console.log('To (Recipient):', recipientAddress)
+      console.log('Amount:', transferAmount, tokenSymbol)
+
+      // 编码 transferERC20 调用
+      const data = encodeFunctionData({
+        abi: sponsoredTransferV2Abi,
+        functionName: 'transferERC20',
+        args: [tokenAddress as `0x${string}`, recipientAddress as `0x${string}`, amount],
+      })
+
+      // 根据模式选择 wallet client
+      const activeWalletClient = isSelfMode
+        ? createWalletClient({
+            account: authorizer,
+            chain: sepolia,
+            transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
+          })
+        : walletClient
+
+      // 发起转账交易
+      const hash = await activeWalletClient.sendTransaction({
+        to: authorizer.address,
+        data,
+        gas: 150000n,
+      })
+
+      setErc20TransferTx(hash)
+
+      // 等待交易确认
+      await publicClient.waitForTransactionReceipt({ hash })
+
+      // 刷新余额
+      await fetchTokenBalance()
+
+      console.log('✅ ERC20 转账成功！', hash)
+      console.groupEnd()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'ERC20 转账失败'
+      console.error('ERC20 转账失败:', errorMessage)
+      console.error('完整错误:', err)
+      console.groupEnd()
+    }
+  }
+
+  // 执行 ERC20 批量转账 (仅 sponsoredTransferV2 合约)
+  const handleBatchTransferERC20 = async () => {
+    if (!batchRecipients || !batchAmounts) {
+      console.error('错误: 请输入接收地址列表和金额列表')
+      return
+    }
+
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      console.error('错误: 请输入代币地址')
+      return
+    }
+
+    try {
+      const { encodeFunctionData, parseUnits, createWalletClient, http } = await import('viem')
+      const { walletClient, publicClient } = await import('../config/viem')
+      const { privateKeyToAccount } = await import('viem/accounts')
+      const { sepolia } = await import('viem/chains')
+
+      // 解析输入
+      const recipients = batchRecipients.split(',').map((addr) => addr.trim() as `0x${string}`)
+      const amounts = batchAmounts.split(',').map((amount) => parseUnits(amount.trim(), tokenDecimals))
+
+      if (recipients.length !== amounts.length) {
+        console.error('错误: 接收地址数量和金额数量不匹配')
+        return
+      }
+
+      const isSelfMode = gasPaymentMode === 'self'
+      const modeText = isSelfMode ? 'Authorizer 自己' : 'Relay'
+      const authorizer = privateKeyToAccount(authorizerPrivateKey as `0x${string}`)
+
+      console.group(`💎💎 ERC20 批量转账 (Gas: ${modeText})`)
+      console.log('Token:', tokenSymbol, tokenAddress)
+      console.log('From (Authorizer):', authorizer.address)
+      console.log('Recipients:', recipients)
+      console.log('Amounts:', batchAmounts.split(','))
+      console.log('Total Recipients:', recipients.length)
+
+      // 编码 batchTransferERC20 调用
+      const data = encodeFunctionData({
+        abi: sponsoredTransferV2Abi,
+        functionName: 'batchTransferERC20',
+        args: [tokenAddress as `0x${string}`, recipients, amounts],
+      })
+
+      // 根据模式选择 wallet client
+      const activeWalletClient = isSelfMode
+        ? createWalletClient({
+            account: authorizer,
+            chain: sepolia,
+            transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
+          })
+        : walletClient
+
+      // 发起批量转账交易
+      const hash = await activeWalletClient.sendTransaction({
+        to: authorizer.address,
+        data,
+        gas: BigInt(100000 + recipients.length * 50000),
+      })
+
+      setErc20BatchTransferTx(hash)
+
+      // 等待交易确认
+      await publicClient.waitForTransactionReceipt({ hash })
+
+      // 刷新余额
+      await fetchTokenBalance()
+
+      console.log('✅ ERC20 批量转账成功！', hash)
+      console.groupEnd()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'ERC20 批量转账失败'
+      console.error('ERC20 批量转账失败:', errorMessage)
+      console.error('完整错误:', err)
+      console.groupEnd()
+    }
+  }
+
   // 授权后加载余额
   useEffect(() => {
     if (eoaAuthorized && selectedContract === 'sponsoredTransfer' && authorizerPrivateKey) {
       fetchAuthorizerBalance()
     }
   }, [eoaAuthorized, selectedContract, authorizerPrivateKey])
+
+  // V2 合约：加载代币信息和余额
+  useEffect(() => {
+    if (selectedContract === 'sponsoredTransferV2' && tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000') {
+      fetchTokenInfo(tokenAddress)
+    }
+  }, [selectedContract, tokenAddress])
+
+  useEffect(() => {
+    if (eoaAuthorized && selectedContract === 'sponsoredTransferV2' && tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000') {
+      fetchTokenBalance()
+    }
+  }, [eoaAuthorized, selectedContract, tokenAddress, tokenDecimals])
 
   return (
     <div className="eip7702-demo">
@@ -911,16 +1073,85 @@ export const EIP7702Demo: React.FC = () => {
         )}
       </div>
 
-      {/* 转账测试区域 - 仅 sponsoredTransfer 合约且已授权后显示 */}
-      {selectedContract === 'sponsoredTransfer' && eoaAuthorized && (
+      {/* 转账测试区域 - sponsoredTransfer 和 sponsoredTransferV2 合约且已授权后显示 */}
+      {(selectedContract === 'sponsoredTransfer' || selectedContract === 'sponsoredTransferV2') && eoaAuthorized && (
         <div className="transfer-test-section">
           <h3>💸 转账测试 ({gasPaymentMode === 'self' ? 'Authorizer 自己付 Gas' : 'Relay 代付 Gas'})</h3>
+
+          {/* V2 合约：资产类型选择器 */}
+          {selectedContract === 'sponsoredTransferV2' && (
+            <div className="asset-type-selector" style={{ marginBottom: '20px', background: '#f0f9ff', border: '2px solid #0ea5e9', borderRadius: '8px', padding: '16px' }}>
+              <h4 style={{ marginBottom: '12px', color: '#0369a1' }}>💎 选择资产类型</h4>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div
+                  className={`asset-option ${assetType === 'ETH' ? 'selected' : ''}`}
+                  onClick={() => setAssetType('ETH')}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    border: assetType === 'ETH' ? '2px solid #0ea5e9' : '2px solid #e5e7eb',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    background: assetType === 'ETH' ? '#e0f2fe' : '#f9fafb',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <strong>ETH (原生代币)</strong>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>以太坊主网币</p>
+                </div>
+                <div
+                  className={`asset-option ${assetType === 'ERC20' ? 'selected' : ''}`}
+                  onClick={() => setAssetType('ERC20')}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    border: assetType === 'ERC20' ? '2px solid #0ea5e9' : '2px solid #e5e7eb',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    background: assetType === 'ERC20' ? '#e0f2fe' : '#f9fafb',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <strong>ERC20 (代币)</strong>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
+                    {tokenSymbol || 'TUSDC'} - 测试代币
+                  </p>
+                </div>
+              </div>
+              {assetType === 'ERC20' && (
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ fontSize: '12px', color: '#475569', fontWeight: 600 }}>代币合约地址:</label>
+                  <input
+                    type="text"
+                    value={tokenAddress}
+                    onChange={(e) => {
+                      setTokenAddress(e.target.value)
+                      if (e.target.value) {
+                        fetchTokenInfo(e.target.value)
+                      }
+                    }}
+                    placeholder="0x..."
+                    className="contract-address-input"
+                    style={{ marginTop: '4px', fontSize: '12px' }}
+                  />
+                  {tokenSymbol && (
+                    <p style={{ fontSize: '11px', color: '#0369a1', marginTop: '4px' }}>
+                      ✓ {tokenSymbol} (小数位: {tokenDecimals})
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="balance-info">
             <div className="balance-item">
               <label>Authorizer EOA 余额:</label>
-              <code>{authorizerBalance} ETH</code>
-              <button onClick={fetchAuthorizerBalance} className="btn-refresh">
+              <code>{assetType === 'ETH' || selectedContract === 'sponsoredTransfer' ? `${authorizerBalance} ETH` : `${tokenBalance} ${tokenSymbol || 'Token'}`}</code>
+              <button
+                onClick={assetType === 'ETH' || selectedContract === 'sponsoredTransfer' ? fetchAuthorizerBalance : fetchTokenBalance}
+                className="btn-refresh"
+              >
                 🔄 刷新
               </button>
             </div>
@@ -957,18 +1188,23 @@ export const EIP7702Demo: React.FC = () => {
             </div>
 
             <button
-              onClick={handleTransferETH}
+              onClick={selectedContract === 'sponsoredTransferV2' && assetType === 'ERC20' ? handleTransferERC20 : handleTransferETH}
               className="btn btn-primary"
               disabled={!recipientAddress || !transferAmount || loading}
             >
-              执行转账
+              {selectedContract === 'sponsoredTransferV2' && assetType === 'ERC20' ? '💎 执行 ERC20 转账' : '执行转账'}
             </button>
 
-            {transferTx && (
+            {(assetType === 'ERC20' && selectedContract === 'sponsoredTransferV2' ? erc20TransferTx : transferTx) && (
               <div className="success-message">
                 <p>✅ 转账成功！</p>
-                <a href={`https://sepolia.etherscan.io/tx/${transferTx}`} target="_blank" rel="noopener noreferrer" className="tx-link">
-                  查看交易: {transferTx.substring(0, 10)}...
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${assetType === 'ERC20' && selectedContract === 'sponsoredTransferV2' ? erc20TransferTx : transferTx}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tx-link"
+                >
+                  查看交易: {(assetType === 'ERC20' && selectedContract === 'sponsoredTransferV2' ? erc20TransferTx : transferTx)?.substring(0, 10)}...
                 </a>
               </div>
             )}
@@ -1017,19 +1253,24 @@ export const EIP7702Demo: React.FC = () => {
             </div>
 
             <button
-              onClick={handleBatchTransfer}
+              onClick={selectedContract === 'sponsoredTransferV2' && assetType === 'ERC20' ? handleBatchTransferERC20 : handleBatchTransfer}
               className="btn btn-primary"
               disabled={!batchRecipients || !batchAmounts || loading}
               style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
             >
-              💸 执行批量转账
+              {selectedContract === 'sponsoredTransferV2' && assetType === 'ERC20' ? '💎💎 执行 ERC20 批量转账' : '💸 执行批量转账'}
             </button>
 
-            {batchTransferTx && (
+            {(assetType === 'ERC20' && selectedContract === 'sponsoredTransferV2' ? erc20BatchTransferTx : batchTransferTx) && (
               <div className="success-message">
                 <p>✅ 批量转账成功！</p>
-                <a href={`https://sepolia.etherscan.io/tx/${batchTransferTx}`} target="_blank" rel="noopener noreferrer" className="tx-link">
-                  查看交易: {batchTransferTx.substring(0, 10)}...
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${assetType === 'ERC20' && selectedContract === 'sponsoredTransferV2' ? erc20BatchTransferTx : batchTransferTx}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tx-link"
+                >
+                  查看交易: {(assetType === 'ERC20' && selectedContract === 'sponsoredTransferV2' ? erc20BatchTransferTx : batchTransferTx)?.substring(0, 10)}...
                 </a>
               </div>
             )}
