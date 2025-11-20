@@ -228,77 +228,31 @@ export function useMetaMaskSmartAccount() {
   }, [createExtendedClient])
 
   /**
-   * 触发 EIP-7702 Delegation（EOA → Smart Account 升级）
+   * ⚠️ 已废弃：不再需要手动触发 EIP-7702 Delegation
    *
-   * 使用 viem 的 signAuthorization API 完成 EIP-7702 delegation：
-   * 1. 签署 authorization（授权特定合约代理 EOA）
-   * 2. 发送包含 authorizationList 的交易
-   * 3. EOA 升级为 Smart Account
+   * MetaMask 浏览器扩展已集成 EIP-7702 自动升级：
+   * - 当用户首次使用 sendCalls (EIP-5792) 执行批量交易时
+   * - MetaMask 会自动检测用户是 EOA
+   * - 弹窗提示用户升级到 Smart Account
+   * - 用户确认后，MetaMask 自动处理 EIP-7702 升级
+   * - 然后执行批量交易
    *
-   * 标准流程：
-   * - 用户签署 authorization
-   * - 发送一个包含 authorization 的交易（可以是 dummy transaction）
-   * - 链上执行后，EOA 被授权使用 EIP7702StatelessDeleGator 合约的代码
+   * 参考：
+   * - https://docs.metamask.io/wallet/how-to/send-transactions/send-batch-transactions/
+   * - https://docs.metamask.io/tutorials/upgrade-eoa-to-smart-account/
    *
-   * 参考：https://viem.sh/docs/eip7702/signAuthorization
+   * @deprecated 直接使用 batchTransfer() 即可，MetaMask 会自动处理升级
    */
-  const triggerDelegation = useCallback(async (): Promise<Hash> => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }))
-
-    try {
-      console.log('🔐 Triggering EIP-7702 delegation...')
-
-      const client = createExtendedClient()
-
-      // 获取当前账户
-      const [account] = await client.getAddresses()
-      if (!account) {
-        throw new Error('No account connected')
-      }
-
-      // 获取 EIP7702StatelessDeleGator 合约地址
-      const delegatorAddress = getContractAddress('EIP7702StatelessDeleGator')
-
-      console.log('📝 Signing authorization for delegation...')
-      console.log('  Account:', account)
-      console.log('  Contract:', delegatorAddress)
-
-      // 签署 authorization
-      // 这会触发 MetaMask 弹窗，用户确认授权
-      const authorization = await client.signAuthorization({
-        account,
-        contractAddress: delegatorAddress,
-        executor: 'self', // 自执行（EOA 自己执行交易）
-      })
-
-      console.log('✅ Authorization signed:', authorization)
-
-      // 发送包含 authorization 的交易
-      // 这是一个 dummy transaction（发送 0 ETH 给自己），目的是触发 EIP-7702 升级
-      console.log('📤 Sending EIP-7702 transaction...')
-      const hash = await client.sendTransaction({
-        authorizationList: [authorization],
-        data: '0x' as Hash,
-        to: account, // 发送给自己
-        value: 0n,
-      })
-
-      console.log('✅ EIP-7702 delegation completed! Transaction hash:', hash)
-
-      setState((prev) => ({ ...prev, isLoading: false }))
-
-      return hash
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to trigger delegation'
-      console.error('❌ Delegation failed:', error)
-      setState((prev) => ({
-        ...prev,
-        error: errorMsg,
-        isLoading: false,
-      }))
-      throw error
-    }
-  }, [createExtendedClient])
+  const triggerDelegation = useCallback(async (): Promise<void> => {
+    console.warn(
+      '⚠️ triggerDelegation() is deprecated. ' +
+        'Use batchTransfer() directly - MetaMask will automatically prompt for EIP-7702 upgrade when needed.'
+    )
+    throw new Error(
+      'Manual delegation is not supported. ' +
+        'MetaMask handles EIP-7702 upgrade automatically when you use batch transactions (sendCalls).'
+    )
+  }, [])
 
   /**
    * 请求执行权限（ERC-7715）
