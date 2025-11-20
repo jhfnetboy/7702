@@ -52,12 +52,15 @@ export function MetaMaskSmartAccount() {
       // 请求连接
       await window.ethereum.request({ method: 'eth_requestAccounts' })
 
-      // 检查钱包能力
+      // 检查钱包能力（包含账户和余额）
       const caps = await checkCapabilities()
       setCapabilities(caps)
 
       console.log('✅ Wallet capabilities:', caps)
-      console.log('🔍 Debug - Hook state:', { account, balance: balance?.toString() })
+      console.log('✅ Account from capabilities:', {
+        account: caps.account,
+        balance: caps.balance.toString(),
+      })
 
       // 检查 EIP-5792 支持情况
       // 温和地显示通知，不使用侵入性的 alert/confirm
@@ -195,8 +198,8 @@ export function MetaMaskSmartAccount() {
             <h3>步骤 1: 连接钱包</h3>
             <p>连接 MetaMask 并检查钱包能力</p>
 
-            {/* 账户信息显示 */}
-            {account && balance !== null && (
+            {/* 账户信息显示 - 使用 capabilities 中的数据 */}
+            {capabilities?.account && capabilities.account !== '0x0000000000000000000000000000000000000000' && (
               <div style={{
                 marginBottom: '16px',
                 padding: '12px',
@@ -208,21 +211,21 @@ export function MetaMaskSmartAccount() {
                   <div>
                     <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>已连接账户</div>
                     <div style={{ fontSize: '14px', fontWeight: '500', fontFamily: 'monospace' }}>
-                      {account.slice(0, 6)}...{account.slice(-4)}
+                      {capabilities.account.slice(0, 6)}...{capabilities.account.slice(-4)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>余额</div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#4a90e2' }}>
-                      {parseFloat(formatEther(balance)).toFixed(4)} ETH
+                      {parseFloat(formatEther(capabilities.balance)).toFixed(4)} ETH
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            <button onClick={handleConnect} disabled={isLoading || !!account} className="primary-button">
-              {isLoading ? '连接中...' : account ? '✓ 已连接' : '连接 MetaMask'}
+            <button onClick={handleConnect} disabled={isLoading || !!capabilities?.account} className="primary-button">
+              {isLoading ? '连接中...' : capabilities?.account ? '✓ 已连接' : '连接 MetaMask'}
             </button>
 
             {capabilities && (

@@ -80,6 +80,8 @@ export interface WalletCapabilities {
   supportsAtomicBatch: boolean // 是否支持原子批量操作
   supportsPaymaster: boolean // 是否支持 Paymaster
   allCapabilities: Record<string, any> // 所有能力的原始数据
+  account: Address // 账户地址
+  balance: bigint // 账户余额
 }
 
 /**
@@ -224,7 +226,12 @@ export function useMetaMaskSmartAccount() {
         return newState
       })
 
-      return result
+      // 返回结果包含账户和余额
+      return {
+        ...result,
+        account,
+        balance,
+      }
     } catch (error) {
       console.error('❌ Failed to get capabilities:', error)
       console.log('ℹ️ Falling back to sequential transactions')
@@ -232,6 +239,8 @@ export function useMetaMaskSmartAccount() {
         supportsAtomicBatch: false,
         supportsPaymaster: false,
         allCapabilities: {},
+        account: '0x0000000000000000000000000000000000000000' as Address,
+        balance: 0n,
       }
     }
   }, [createExtendedClient])
