@@ -228,31 +228,75 @@ export function useMetaMaskSmartAccount() {
   }, [createExtendedClient])
 
   /**
-   * ⚠️ 已废弃：不再需要手动触发 EIP-7702 Delegation
+   * 触发 EIP-7702 升级（通过 dummy batch call）
    *
-   * MetaMask 浏览器扩展已集成 EIP-7702 自动升级：
-   * - 当用户首次使用 sendCalls (EIP-5792) 执行批量交易时
-   * - MetaMask 会自动检测用户是 EOA
-   * - 弹窗提示用户升级到 Smart Account
-   * - 用户确认后，MetaMask 自动处理 EIP-7702 升级
-   * - 然后执行批量交易
+   * 由于 viem 的 signAuthorization 不支持 JSON-RPC 账户（MetaMask），
+   * 我们使用一个 dummy batch transaction 来触发 MetaMask 的自动升级提示：
+   *
+   * 流程：
+   * 1. 发送一个简单的 batch call（发送 0 ETH 给自己）
+   * 2. MetaMask 检测到用户是 EOA 且未升级
+   * 3. MetaMask 自动弹窗提示"Upgrade to Smart Account"
+   * 4. 用户确认后，MetaMask 自动处理 EIP-7702 delegation
+   * 5. dummy transaction 执行完成
    *
    * 参考：
    * - https://docs.metamask.io/wallet/how-to/send-transactions/send-batch-transactions/
    * - https://docs.metamask.io/tutorials/upgrade-eoa-to-smart-account/
-   *
-   * @deprecated 直接使用 batchTransfer() 即可，MetaMask 会自动处理升级
    */
-  const triggerDelegation = useCallback(async (): Promise<void> => {
-    console.warn(
-      '⚠️ triggerDelegation() is deprecated. ' +
-        'Use batchTransfer() directly - MetaMask will automatically prompt for EIP-7702 upgrade when needed.'
-    )
-    throw new Error(
-      'Manual delegation is not supported. ' +
-        'MetaMask handles EIP-7702 upgrade automatically when you use batch transactions (sendCalls).'
-    )
-  }, [])
+  const triggerDelegation = useCallback(async (): Promise<string> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      console.log('🔐 Triggering EIP-7702 upgrade via dummy batch call...')
+
+      const client = createExtendedClient()
+
+      // 获取当前账户
+      const [account] = await client.getAddresses()
+      if (!account) {
+        throw new Error('No account connected')
+      }
+
+      // 发送一个 dummy batch call（发送 0 ETH 给自己）
+      // 这会触发 MetaMask 检测并提示用户升级到 Smart Account
+      console.log('📤 Sending dummy batch call to trigger upgrade prompt...')
+      const callId = await client.sendCalls({
+        calls: [
+          {
+            to: account,
+            value: 0n,
+            data: '0x' as Hash,
+          },
+        ],
+        // @ts-ignore - experimental_fallback 是有效的
+        experimental_fallback: true,
+      })
+
+      console.log('✅ Dummy call sent, MetaMask will prompt for upgrade')
+      console.log('   Call ID:', callId)
+
+      // 等待交易完成
+      console.log('⏳ Waiting for upgrade transaction to complete...')
+      const statusResult = await client.waitForCallsStatus({ id: callId as any })
+
+      console.log('✅ EIP-7702 upgrade completed!')
+      console.log('   Status:', statusResult)
+
+      setState((prev) => ({ ...prev, isLoading: false }))
+
+      return callId as string
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to trigger delegation'
+      console.error('❌ Delegation upgrade failed:', error)
+      setState((prev) => ({
+        ...prev,
+        error: errorMsg,
+        isLoading: false,
+      }))
+      throw error
+    }
+  }, [createExtendedClient])
 
   /**
    * 请求执行权限（ERC-7715）

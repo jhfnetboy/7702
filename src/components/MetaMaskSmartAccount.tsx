@@ -28,9 +28,9 @@ export function MetaMaskSmartAccount() {
   } = useMetaMaskSmartAccount()
 
   // UI 状态
-  // 流程：connect → transfer
-  // MetaMask 会在用户首次执行 batch transfer 时自动提示 EIP-7702 升级
-  const [step, setStep] = useState<'connect' | 'transfer'>('connect')
+  // 流程：connect → upgrade → transfer
+  const [step, setStep] = useState<'connect' | 'upgrade' | 'transfer'>('connect')
+  const [upgradeCallId, setUpgradeCallId] = useState<string>('')
   const [capabilities, setCapabilities] = useState<any>(null)
   const [sessionKey, setSessionKey] = useState<Address>('0x0000000000000000000000000000000000000000')
   const [recipients, setRecipients] = useState<Array<{ address: string; amount: string }>>([
@@ -73,9 +73,8 @@ export function MetaMaskSmartAccount() {
         setShowUpgradeNotice(false)
       }
 
-      // 直接进入转账步骤
-      // MetaMask 会在用户首次执行批量交易时自动提示 EIP-7702 升级
-      setStep('transfer')
+      // 进入升级步骤
+      setStep('upgrade')
     } catch (err) {
       console.error('❌ 连接失败:', err)
       // 错误已通过 hook 的 error state 显示，无需 alert
@@ -83,21 +82,27 @@ export function MetaMaskSmartAccount() {
   }
 
   /**
-   * ⚠️ 已移除手动 delegation 步骤
-   *
-   * MetaMask 会在用户首次使用批量交易时自动提示 EIP-7702 升级：
-   * 1. 用户点击"执行批量转账"
-   * 2. dApp 调用 sendCalls (EIP-5792)
-   * 3. MetaMask 检测用户是 EOA 且未升级
-   * 4. MetaMask 自动弹窗提示"Upgrade to Smart Account"
-   * 5. 用户确认后，MetaMask 自动处理 EIP-7702 升级
-   * 6. 然后执行批量交易
+   * 步骤 2: 触发 EIP-7702 升级
    */
+  const handleUpgrade = async () => {
+    try {
+      console.log('🔐 Triggering EIP-7702 upgrade...')
+
+      const callId = await triggerDelegation()
+
+      console.log('✅ Upgrade completed! Call ID:', callId)
+      setUpgradeCallId(callId)
+
+      // 成功后进入转账步骤
+      setStep('transfer')
+    } catch (err) {
+      console.error('❌ Upgrade failed:', err)
+      // 错误已通过 hook 的 error state 显示，无需 alert
+    }
+  }
 
   /**
-   * 步骤 2: 执行批量转账
-   *
-   * 如果用户还未升级到 Smart Account，MetaMask 会自动提示升级
+   * 步骤 3: 执行批量转账
    */
   const handleBatchTransfer = async () => {
     try {
@@ -156,6 +161,7 @@ export function MetaMaskSmartAccount() {
     reset()
     setStep('connect')
     setCapabilities(null)
+    setUpgradeCallId('')
     setSessionKey('0x0000000000000000000000000000000000000000')
     setRecipients([{ address: '', amount: '' }])
     setMaxAmount('1')
@@ -265,27 +271,93 @@ export function MetaMaskSmartAccount() {
           </div>
         )}
 
-        {/* 步骤 2: 批量转账 */}
+        {/* 步骤 2: EIP-7702 升级 */}
+        {step === 'upgrade' && (
+          <div className="step-section">
+            <h3>步骤 2: EIP-7702 Smart Account 升级</h3>
+            <p>
+              将您的 EOA（外部账户）升级为 Smart Account（智能账户）
+            </p>
+
+            <div className="info-box">
+              <h4>升级说明：</h4>
+              <p style={{ margin: '8px 0', fontSize: '14px', lineHeight: '1.6' }}>
+                点击下方按钮后，MetaMask 会自动弹窗提示您升级到 Smart Account（EIP-7702）。
+                这是一次性操作，升级后您的 EOA 将获得以下功能：
+              </p>
+              <ul style={{ margin: '8px 0 8px 20px', fontSize: '13px', lineHeight: '1.6' }}>
+                <li>✅ <strong>批量交易</strong> - 一次确认，多笔交易原子执行</li>
+                <li>✅ <strong>Gasless 交易</strong> - 使用 Paymaster 代付 Gas 费用</li>
+                <li>✅ <strong>委托权限</strong> - 授权第三方代表您执行交易</li>
+                <li>✅ <strong>更多账户抽象功能</strong></li>
+              </ul>
+
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 12px',
+                background: '#e3f2fd',
+                border: '1px solid #2196f3',
+                borderRadius: '4px',
+                fontSize: '13px',
+                lineHeight: '1.6'
+              }}>
+                <strong>🔐 技术细节：</strong>
+                <ul style={{ margin: '4px 0 0 20px', paddingLeft: 0 }}>
+                  <li>升级通过发送一个 dummy batch call 触发</li>
+                  <li>MetaMask 检测到您是 EOA 后会提示升级</li>
+                  <li>您的账户将委托给 MetaMask EIP-7702 Delegator 合约</li>
+                  <li>合约地址: <code style={{ fontSize: '11px' }}>0x63c0...e32b</code></li>
+                </ul>
+              </div>
+
+              <div style={{
+                marginTop: '12px',
+                padding: '8px 12px',
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: '4px',
+                fontSize: '13px',
+                color: '#856404'
+              }}>
+                💡 <strong>注意：</strong>此操作需要支付少量 Gas 费用（大约 0.0001-0.001 ETH）
+              </div>
+            </div>
+
+            {upgradeCallId && (
+              <div className="success-box">
+                <strong>✅ 升级完成！</strong>
+                <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                  Call ID: <code style={{ fontSize: '11px' }}>{upgradeCallId}</code>
+                </p>
+                <p style={{ margin: '8px 0', fontSize: '13px', color: '#666' }}>
+                  您的账户现在是 Smart Account，可以使用批量交易等高级功能！
+                </p>
+              </div>
+            )}
+
+            <div className="button-group">
+              <button
+                onClick={handleUpgrade}
+                disabled={isLoading}
+                className="primary-button"
+              >
+                {isLoading ? '升级中...' : '🔐 升级到 Smart Account'}
+              </button>
+              <button onClick={() => setStep('connect')} className="secondary-button" disabled={isLoading}>
+                返回
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 步骤 3: 批量转账 */}
         {step === 'transfer' && (
           <div className="step-section">
-            <h3>步骤 2: EIP-5792 批量转账</h3>
+            <h3>步骤 3: EIP-5792 批量转账</h3>
             <p>
               使用 <code>sendCalls</code> API 执行批量交易
               {capabilities?.supportsAtomicBatch && ' (原子批量模式)'}
             </p>
-
-            <div className="info-box" style={{ marginBottom: '16px' }}>
-              <h4>💡 首次使用提示：</h4>
-              <p style={{ margin: '8px 0', fontSize: '14px', lineHeight: '1.6' }}>
-                如果您还未升级到 Smart Account，MetaMask 会在执行批量交易时自动提示您升级（EIP-7702）。
-                这是一次性操作，升级后您的 EOA 将获得 Smart Account 功能：
-              </p>
-              <ul style={{ margin: '8px 0 8px 20px', fontSize: '13px', lineHeight: '1.6' }}>
-                <li>批量交易（一次确认，多笔执行）</li>
-                <li>Gasless 交易（使用 Paymaster 代付 Gas）</li>
-                <li>更多账户抽象功能</li>
-              </ul>
-            </div>
 
             <div className="form-group">
               <label>Paymaster 服务 URL (可选):</label>
