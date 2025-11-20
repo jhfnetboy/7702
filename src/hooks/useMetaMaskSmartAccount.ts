@@ -266,7 +266,7 @@ export function useMetaMaskSmartAccount() {
           {
             to: account,
             value: 0n,
-            data: '0x' as Hash,
+            // data 字段是可选的，简单的 ETH 转账不需要 data
           },
         ],
         // @ts-ignore - experimental_fallback 是有效的
@@ -460,7 +460,7 @@ export function useMetaMaskSmartAccount() {
             return {
               to: recipient.address,
               value: recipient.amount,
-              data: '0x' as Hash,
+              // data 字段是可选的，简单的 ETH 转账不需要 data
             }
           }
         })
