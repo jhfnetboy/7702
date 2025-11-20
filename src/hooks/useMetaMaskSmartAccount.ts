@@ -211,8 +211,18 @@ export function useMetaMaskSmartAccount() {
       const publicClient = createPublicClientInstance()
       const balance = await publicClient.getBalance({ address: account })
 
+      console.log('💰 Account and balance:', {
+        account,
+        balance: balance.toString(),
+        balanceETH: balance / BigInt(10 ** 18),
+      })
+
       // 更新状态
-      setState((prev) => ({ ...prev, account, balance }))
+      setState((prev) => {
+        const newState = { ...prev, account, balance }
+        console.log('📝 Updating state with account info:', newState)
+        return newState
+      })
 
       return result
     } catch (error) {

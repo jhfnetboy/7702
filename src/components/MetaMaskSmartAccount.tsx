@@ -57,6 +57,7 @@ export function MetaMaskSmartAccount() {
       setCapabilities(caps)
 
       console.log('✅ Wallet capabilities:', caps)
+      console.log('🔍 Debug - Hook state:', { account, balance: balance?.toString() })
 
       // 检查 EIP-5792 支持情况
       // 温和地显示通知，不使用侵入性的 alert/confirm
