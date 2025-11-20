@@ -48,21 +48,25 @@ const TEMP_ADDRESSES: Record<ContractName, `0x${string}`> = {
  * 从 shared-config 获取合约地址
  * @param name 合约名称
  * @param network 网络名称
- * @returns 合约地址
+ * @param optional 是否可选（未部署时返回 undefined 而不是抛错）
+ * @returns 合约地址或 undefined
  */
 export function getContractAddress(
   name: ContractName,
-  network: NetworkName = 'sepolia'
-): `0x${string}` {
+  network: NetworkName = 'sepolia',
+  optional: boolean = false
+): `0x${string}` | undefined {
   // TODO: 实际实现应该是:
   // import { getAddress } from '@aastar/shared-config'
   // return getAddress(name, network) as `0x${string}`
 
-  // 临时返回硬编码地址
-  console.warn(`⚠️ 临时使用硬编码地址 for ${name}，需要从 shared-config 获取`)
   const address = TEMP_ADDRESSES[name]
 
   if (!address || address === '0x0000000000000000000000000000000000000000') {
+    if (optional) {
+      console.log(`ℹ️ Contract ${name} not deployed on ${network} (optional)`)
+      return undefined
+    }
     throw new Error(`合约 ${name} 在 ${network} 网络上未找到或未部署`)
   }
 
@@ -90,21 +94,21 @@ export function getContractABI(name: ContractName): any {
  */
 export function getAllContracts(network: NetworkName = 'sepolia') {
   return {
-    // MetaMask 官方合约
+    // MetaMask 官方合约（必需）
     delegationManager: getContractAddress('DelegationManager', network),
     eip7702Delegator: getContractAddress('EIP7702StatelessDeleGator', network),
 
-    // AAStar 合约
+    // AAStar 合约（必需）
     mySBT: getContractAddress('MySBT', network),
     sponsoredTransferV2: getContractAddress('SponsoredTransferDelegationV2', network),
 
-    // 自定义 Enforcers（部署后更新）
-    mySBTEnforcer: getContractAddress('MySBTGatedEnforcer', network),
-    batchTransferEnforcer: getContractAddress('BatchTransferEnforcer', network),
+    // 自定义 Enforcers（可选 - 待部署）
+    mySBTEnforcer: getContractAddress('MySBTGatedEnforcer', network, true),
+    batchTransferEnforcer: getContractAddress('BatchTransferEnforcer', network, true),
 
-    // 服务合约
-    relayService: getContractAddress('RelayService', network),
-    paymaster: getContractAddress('Paymaster', network),
+    // 服务合约（可选 - 待部署）
+    relayService: getContractAddress('RelayService', network, true),
+    paymaster: getContractAddress('Paymaster', network, true),
   } as const
 }
 
