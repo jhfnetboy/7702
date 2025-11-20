@@ -56,12 +56,6 @@ export function MetaMaskSmartAccount() {
       const caps = await checkCapabilities()
       setCapabilities(caps)
 
-      console.log('✅ Wallet capabilities:', caps)
-      console.log('✅ Account from capabilities:', {
-        account: caps.account,
-        balance: caps.balance.toString(),
-      })
-
       // 检查 EIP-5792 支持情况
       // 温和地显示通知，不使用侵入性的 alert/confirm
       if (!caps.supportsAtomicBatch) {
@@ -293,14 +287,33 @@ export function MetaMaskSmartAccount() {
 
             <div className="form-group">
               <label>Session Key 地址:</label>
-              <input
-                type="text"
-                value={sessionKey}
-                onChange={(e) => setSessionKey(e.target.value as Address)}
-                placeholder="0x..."
-                className="input-field"
-              />
-              <small>Dapp 后端生成的临时密钥地址</small>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={sessionKey}
+                  onChange={(e) => setSessionKey(e.target.value as Address)}
+                  placeholder="0x..."
+                  className="input-field"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  onClick={() => {
+                    // 生成一个随机的临时地址（仅用于测试）
+                    const randomKey = `0x${Array.from({ length: 40 }, () =>
+                      Math.floor(Math.random() * 16).toString(16)
+                    ).join('')}` as Address
+                    setSessionKey(randomKey)
+                    console.log('🔑 Generated temporary Session Key:', randomKey)
+                  }}
+                  className="secondary-button"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  生成测试密钥
+                </button>
+              </div>
+              <small>
+                💡 测试时点击"生成测试密钥"按钮。生产环境中应由后端生成真实密钥对。
+              </small>
             </div>
 
             <div className="form-group">

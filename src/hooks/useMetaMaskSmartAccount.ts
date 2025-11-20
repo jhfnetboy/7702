@@ -163,11 +163,6 @@ export function useMetaMaskSmartAccount() {
         account,
       })
 
-      // Debug: 打印完整的 capabilities 数据
-      console.log('🔍 Debug - Full capabilities:', JSON.stringify(capabilities, null, 2))
-      console.log('🔍 Debug - Chain ID:', sepolia.id, `(hex: ${sepolia.id.toString(16)})`)
-      console.log('🔍 Debug - Chain capabilities:', capabilities[sepolia.id])
-
       // 尝试多种方式获取 chain capabilities
       // MetaMask 可能使用十六进制或十进制的 chainId
       const chainIdHex = `0x${sepolia.id.toString(16)}` as any
@@ -176,8 +171,6 @@ export function useMetaMaskSmartAccount() {
         capabilities[chainIdHex] ||
         capabilities[String(sepolia.id)] ||
         {}
-
-      console.log('🔍 Debug - Resolved chain capabilities:', chainCapabilities)
 
       // Check MetaMask version - 尝试多种方式获取版本
       let metamaskVersion = 'unknown'
@@ -206,25 +199,14 @@ export function useMetaMaskSmartAccount() {
         console.log('✅ EIP-5792 batch transactions supported (atomic mode)')
       } else {
         console.warn('⚠️ Batch transactions not supported, will use fallback')
-        console.warn('⚠️ Debug - This might be a detection issue, not a MetaMask limitation')
       }
 
       // 获取账户余额
       const publicClient = createPublicClientInstance()
       const balance = await publicClient.getBalance({ address: account })
 
-      console.log('💰 Account and balance:', {
-        account,
-        balance: balance.toString(),
-        balanceETH: balance / BigInt(10 ** 18),
-      })
-
       // 更新状态
-      setState((prev) => {
-        const newState = { ...prev, account, balance }
-        console.log('📝 Updating state with account info:', newState)
-        return newState
-      })
+      setState((prev) => ({ ...prev, account, balance }))
 
       // 返回结果包含账户和余额
       return {
