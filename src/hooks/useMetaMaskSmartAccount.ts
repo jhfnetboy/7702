@@ -89,6 +89,8 @@ interface SmartAccountState {
   permissions: RequestExecutionPermissionsReturnType | null
   isLoading: boolean
   error: string | null
+  account: Address | null
+  balance: bigint | null
 }
 
 // ==================== Hook ====================
@@ -98,6 +100,8 @@ export function useMetaMaskSmartAccount() {
     permissions: null,
     isLoading: false,
     error: null,
+    account: null,
+    balance: null,
   })
 
   /**
@@ -173,24 +177,42 @@ export function useMetaMaskSmartAccount() {
 
       console.log('🔍 Debug - Resolved chain capabilities:', chainCapabilities)
 
-      // Check MetaMask version if available
+      // Check MetaMask version - 尝试多种方式获取版本
+      let metamaskVersion = 'unknown'
       if (window.ethereum?.isMetaMask) {
-        const version = window.ethereum.version || 'unknown'
-        console.log('✅ MetaMask detected, version:', version)
+        // 尝试多个可能的版本字段
+        metamaskVersion =
+          window.ethereum.version ||
+          (window.ethereum as any)._metamask?.version ||
+          'unknown'
+        console.log('✅ MetaMask detected, version:', metamaskVersion)
       }
 
+      // 修复：MetaMask 使用 "atomic" 字段，不是 "atomicBatch"
+      // EIP-5792 的实际实现可能使用不同的字段名
       const result = {
-        supportsAtomicBatch: !!chainCapabilities.atomicBatch,
+        supportsAtomicBatch: !!(
+          chainCapabilities.atomicBatch ||
+          chainCapabilities.atomic ||
+          (chainCapabilities.atomic as any)?.status === 'ready'
+        ),
         supportsPaymaster: !!chainCapabilities.paymasterService,
         allCapabilities: capabilities,
       }
 
       if (result.supportsAtomicBatch) {
-        console.log('✅ EIP-5792 batch transactions supported')
+        console.log('✅ EIP-5792 batch transactions supported (atomic mode)')
       } else {
         console.warn('⚠️ Batch transactions not supported, will use fallback')
         console.warn('⚠️ Debug - This might be a detection issue, not a MetaMask limitation')
       }
+
+      // 获取账户余额
+      const publicClient = createPublicClientInstance()
+      const balance = await publicClient.getBalance({ address: account })
+
+      // 更新状态
+      setState((prev) => ({ ...prev, account, balance }))
 
       return result
     } catch (error) {
@@ -458,6 +480,8 @@ export function useMetaMaskSmartAccount() {
       permissions: null,
       isLoading: false,
       error: null,
+      account: null,
+      balance: null,
     })
   }, [])
 

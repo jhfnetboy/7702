@@ -9,7 +9,7 @@
  */
 
 import React, { useState } from 'react'
-import { parseEther, type Address } from 'viem'
+import { parseEther, formatEther, type Address } from 'viem'
 import { useMetaMaskSmartAccount } from '../hooks/useMetaMaskSmartAccount'
 import './MetaMaskSmartAccount.css'
 
@@ -18,6 +18,8 @@ export function MetaMaskSmartAccount() {
     permissions,
     isLoading,
     error,
+    account,
+    balance,
     checkCapabilities,
     requestPermissions,
     batchTransfer,
@@ -192,8 +194,34 @@ export function MetaMaskSmartAccount() {
             <h3>步骤 1: 连接钱包</h3>
             <p>连接 MetaMask 并检查钱包能力</p>
 
-            <button onClick={handleConnect} disabled={isLoading} className="primary-button">
-              {isLoading ? '连接中...' : '连接 MetaMask'}
+            {/* 账户信息显示 */}
+            {account && balance !== null && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px',
+                background: '#f0f7ff',
+                border: '1px solid #4a90e2',
+                borderRadius: '6px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>已连接账户</div>
+                    <div style={{ fontSize: '14px', fontWeight: '500', fontFamily: 'monospace' }}>
+                      {account.slice(0, 6)}...{account.slice(-4)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>余额</div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#4a90e2' }}>
+                      {parseFloat(formatEther(balance)).toFixed(4)} ETH
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button onClick={handleConnect} disabled={isLoading || !!account} className="primary-button">
+              {isLoading ? '连接中...' : account ? '✓ 已连接' : '连接 MetaMask'}
             </button>
 
             {capabilities && (
@@ -205,7 +233,7 @@ export function MetaMaskSmartAccount() {
                   </li>
                   <li>Paymaster: {capabilities.supportsPaymaster ? '✅ 支持' : '❌ 不支持'}</li>
                   <li>
-                    MetaMask 版本: {window.ethereum?.version || 'unknown'}
+                    MetaMask 版本: {window.ethereum?.version || window.ethereum?._metamask?.version || 'unknown'}
                   </li>
                 </ul>
 
