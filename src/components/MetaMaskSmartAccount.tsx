@@ -27,7 +27,8 @@ export function MetaMaskSmartAccount() {
   } = useMetaMaskSmartAccount()
 
   // UI 状态
-  const [step, setStep] = useState<'connect' | 'permissions' | 'transfer'>('connect')
+  // 注意：跳过 permissions 步骤，因为 wallet_requestExecutionPermissions 还未被 MetaMask 完全支持
+  const [step, setStep] = useState<'connect' | 'transfer'>('connect')
   const [capabilities, setCapabilities] = useState<any>(null)
   const [sessionKey, setSessionKey] = useState<Address>('0x0000000000000000000000000000000000000000')
   const [recipients, setRecipients] = useState<Array<{ address: string; amount: string }>>([
@@ -70,7 +71,8 @@ export function MetaMaskSmartAccount() {
         setShowUpgradeNotice(false)
       }
 
-      setStep('permissions')
+      // 直接进入转账步骤（跳过 permissions，因为 wallet_requestExecutionPermissions 尚未完全支持）
+      setStep('transfer')
     } catch (err) {
       console.error('❌ 连接失败:', err)
       // 错误已通过 hook 的 error state 显示，无需 alert
@@ -277,8 +279,8 @@ export function MetaMaskSmartAccount() {
           </div>
         )}
 
-        {/* 步骤 2: 请求权限 */}
-        {step === 'permissions' && (
+        {/* 步骤 2: 请求权限 - 暂时隐藏（wallet_requestExecutionPermissions 尚未完全支持） */}
+        {false && step === 'permissions' && (
           <div className="step-section">
             <h3>步骤 2: 请求执行权限</h3>
             <p>
@@ -349,11 +351,14 @@ export function MetaMaskSmartAccount() {
           </div>
         )}
 
-        {/* 步骤 3: 批量转账 */}
+        {/* 步骤 2: 批量转账 */}
         {step === 'transfer' && (
           <div className="step-section">
-            <h3>步骤 3: Gasless 批量转账</h3>
-            <p>使用 EIP-5792 执行批量交易，Paymaster 代付 Gas</p>
+            <h3>步骤 2: EIP-5792 批量转账</h3>
+            <p>
+              使用 <code>sendCalls</code> API 执行批量交易
+              {capabilities?.supportsAtomicBatch && ' (原子批量模式)'}
+            </p>
 
             <div className="form-group">
               <label>Paymaster 服务 URL (可选):</label>
@@ -405,9 +410,9 @@ export function MetaMaskSmartAccount() {
                 disabled={isLoading}
                 className="primary-button"
               >
-                {isLoading ? '执行中...' : '执行 Gasless 批量转账'}
+                {isLoading ? '执行中...' : '执行批量转账'}
               </button>
-              <button onClick={() => setStep('permissions')} className="secondary-button">
+              <button onClick={() => setStep('connect')} className="secondary-button">
                 返回
               </button>
             </div>
