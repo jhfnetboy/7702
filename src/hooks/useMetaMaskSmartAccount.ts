@@ -228,7 +228,83 @@ export function useMetaMaskSmartAccount() {
   }, [createExtendedClient])
 
   /**
+   * 触发 EIP-7702 Delegation（EOA → Smart Account 升级）
+   *
+   * 使用 viem 的 signAuthorization API 完成 EIP-7702 delegation：
+   * 1. 签署 authorization（授权特定合约代理 EOA）
+   * 2. 发送包含 authorizationList 的交易
+   * 3. EOA 升级为 Smart Account
+   *
+   * 标准流程：
+   * - 用户签署 authorization
+   * - 发送一个包含 authorization 的交易（可以是 dummy transaction）
+   * - 链上执行后，EOA 被授权使用 EIP7702StatelessDeleGator 合约的代码
+   *
+   * 参考：https://viem.sh/docs/eip7702/signAuthorization
+   */
+  const triggerDelegation = useCallback(async (): Promise<Hash> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      console.log('🔐 Triggering EIP-7702 delegation...')
+
+      const client = createExtendedClient()
+
+      // 获取当前账户
+      const [account] = await client.getAddresses()
+      if (!account) {
+        throw new Error('No account connected')
+      }
+
+      // 获取 EIP7702StatelessDeleGator 合约地址
+      const delegatorAddress = getContractAddress('EIP7702StatelessDeleGator')
+
+      console.log('📝 Signing authorization for delegation...')
+      console.log('  Account:', account)
+      console.log('  Contract:', delegatorAddress)
+
+      // 签署 authorization
+      // 这会触发 MetaMask 弹窗，用户确认授权
+      const authorization = await client.signAuthorization({
+        account,
+        contractAddress: delegatorAddress,
+        executor: 'self', // 自执行（EOA 自己执行交易）
+      })
+
+      console.log('✅ Authorization signed:', authorization)
+
+      // 发送包含 authorization 的交易
+      // 这是一个 dummy transaction（发送 0 ETH 给自己），目的是触发 EIP-7702 升级
+      console.log('📤 Sending EIP-7702 transaction...')
+      const hash = await client.sendTransaction({
+        authorizationList: [authorization],
+        data: '0x' as Hash,
+        to: account, // 发送给自己
+        value: 0n,
+      })
+
+      console.log('✅ EIP-7702 delegation completed! Transaction hash:', hash)
+
+      setState((prev) => ({ ...prev, isLoading: false }))
+
+      return hash
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to trigger delegation'
+      console.error('❌ Delegation failed:', error)
+      setState((prev) => ({
+        ...prev,
+        error: errorMsg,
+        isLoading: false,
+      }))
+      throw error
+    }
+  }, [createExtendedClient])
+
+  /**
    * 请求执行权限（ERC-7715）
+   *
+   * ⚠️ 注意：wallet_requestExecutionPermissions 在 MetaMask 13.9.0 中尚未完全支持
+   * 应该先使用 triggerDelegation() 完成 EIP-7702 升级，再使用此方法请求权限
    *
    * 这是关键方法！它会触发 MetaMask：
    * 1. 检测用户是 EOA
@@ -492,6 +568,7 @@ export function useMetaMaskSmartAccount() {
 
     // 方法
     checkCapabilities,
+    triggerDelegation, // ✨ 新增：EIP-7702 delegation
     requestPermissions,
     batchTransfer,
     getCallsStatus,

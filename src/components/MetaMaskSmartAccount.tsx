@@ -21,14 +21,16 @@ export function MetaMaskSmartAccount() {
     account,
     balance,
     checkCapabilities,
+    triggerDelegation,
     requestPermissions,
     batchTransfer,
     reset,
   } = useMetaMaskSmartAccount()
 
   // UI 状态
-  // 注意：跳过 permissions 步骤，因为 wallet_requestExecutionPermissions 还未被 MetaMask 完全支持
-  const [step, setStep] = useState<'connect' | 'transfer'>('connect')
+  // 流程：connect → delegation → transfer
+  const [step, setStep] = useState<'connect' | 'delegation' | 'transfer'>('connect')
+  const [delegationTxHash, setDelegationTxHash] = useState<string>('')
   const [capabilities, setCapabilities] = useState<any>(null)
   const [sessionKey, setSessionKey] = useState<Address>('0x0000000000000000000000000000000000000000')
   const [recipients, setRecipients] = useState<Array<{ address: string; amount: string }>>([
@@ -71,8 +73,8 @@ export function MetaMaskSmartAccount() {
         setShowUpgradeNotice(false)
       }
 
-      // 直接进入转账步骤（跳过 permissions，因为 wallet_requestExecutionPermissions 尚未完全支持）
-      setStep('transfer')
+      // 进入 delegation 步骤（EIP-7702 升级）
+      setStep('delegation')
     } catch (err) {
       console.error('❌ 连接失败:', err)
       // 错误已通过 hook 的 error state 显示，无需 alert
@@ -80,7 +82,35 @@ export function MetaMaskSmartAccount() {
   }
 
   /**
-   * 步骤 2: 请求权限
+   * 步骤 2: 触发 EIP-7702 Delegation（EOA → Smart Account 升级）
+   *
+   * 关键流程：
+   * 1. 用户签署 authorization（授权 EIP7702StatelessDeleGator 合约）
+   * 2. 发送包含 authorization 的交易
+   * 3. EOA 升级为 Smart Account
+   */
+  const handleTriggerDelegation = async () => {
+    try {
+      console.log('🔐 Triggering EIP-7702 delegation...')
+
+      const txHash = await triggerDelegation()
+
+      console.log('✅ Delegation completed! Transaction:', txHash)
+      setDelegationTxHash(txHash)
+
+      // 成功后进入转账步骤
+      setStep('transfer')
+    } catch (err) {
+      console.error('❌ Delegation 失败:', err)
+      // 错误已通过 hook 的 error state 显示，无需 alert
+    }
+  }
+
+  /**
+   * 步骤 2 (可选): 请求权限
+   *
+   * ⚠️ 注意：wallet_requestExecutionPermissions 在 MetaMask 13.9.0 中尚未完全支持
+   * 可以先使用 triggerDelegation() 完成 EIP-7702 升级
    *
    * 关键！这会触发 MetaMask:
    * 1. 检测用户是 EOA
@@ -170,6 +200,7 @@ export function MetaMaskSmartAccount() {
     reset()
     setStep('connect')
     setCapabilities(null)
+    setDelegationTxHash('')
     setSessionKey('0x0000000000000000000000000000000000000000')
     setRecipients([{ address: '', amount: '' }])
     setMaxAmount('1')
@@ -279,82 +310,89 @@ export function MetaMaskSmartAccount() {
           </div>
         )}
 
-        {/* 步骤 2: 请求权限 - 暂时隐藏（wallet_requestExecutionPermissions 尚未完全支持） */}
-        {false && step === 'permissions' && (
+        {/* 步骤 2: EIP-7702 Delegation（EOA → Smart Account 升级） */}
+        {step === 'delegation' && (
           <div className="step-section">
-            <h3>步骤 2: 请求执行权限</h3>
+            <h3>步骤 2: EIP-7702 Delegation 升级</h3>
             <p>
-              请求权限会触发 MetaMask 自动将您的 EOA 升级为 Smart Account（EIP-7702）
+              将您的 EOA（外部账户）升级为 Smart Account（智能账户）
             </p>
 
-            <div className="form-group">
-              <label>Session Key 地址:</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  value={sessionKey}
-                  onChange={(e) => setSessionKey(e.target.value as Address)}
-                  placeholder="0x..."
-                  className="input-field"
-                  style={{ flex: 1 }}
-                />
-                <button
-                  onClick={() => {
-                    // 生成一个随机的临时地址（仅用于测试）
-                    const randomKey = `0x${Array.from({ length: 40 }, () =>
-                      Math.floor(Math.random() * 16).toString(16)
-                    ).join('')}` as Address
-                    setSessionKey(randomKey)
-                    console.log('🔑 Generated temporary Session Key:', randomKey)
-                  }}
-                  className="secondary-button"
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  生成测试密钥
-                </button>
+            <div className="info-box">
+              <h4>升级流程：</h4>
+              <ol style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+                <li>
+                  <strong>签署 Authorization</strong>
+                  <br />
+                  <small style={{ color: '#666' }}>
+                    授权 EIP7702StatelessDeleGator 合约代理您的账户
+                  </small>
+                </li>
+                <li>
+                  <strong>发送 EIP-7702 交易</strong>
+                  <br />
+                  <small style={{ color: '#666' }}>
+                    链上执行 delegation，将合约代码绑定到您的 EOA
+                  </small>
+                </li>
+                <li>
+                  <strong>完成升级</strong>
+                  <br />
+                  <small style={{ color: '#666' }}>
+                    您的 EOA 现在可以使用 Smart Account 功能（批量交易、Gasless 等）
+                  </small>
+                </li>
+              </ol>
+
+              <div style={{
+                marginTop: '12px',
+                padding: '8px 12px',
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: '4px',
+                fontSize: '13px',
+                color: '#856404'
+              }}>
+                💡 <strong>注意：</strong>此操作需要支付少量 Gas 费用（大约 0.0001-0.001 ETH）
               </div>
-              <small>
-                💡 测试时点击"生成测试密钥"按钮。生产环境中应由后端生成真实密钥对。
-              </small>
             </div>
 
-            <div className="form-group">
-              <label>最大金额（ETH，每日限额）:</label>
-              <input
-                type="text"
-                value={maxAmount}
-                onChange={(e) => setMaxAmount(e.target.value)}
-                placeholder="1.0"
-                className="input-field"
-              />
-            </div>
+            {delegationTxHash && (
+              <div className="success-box">
+                <strong>✅ Delegation 完成！</strong>
+                <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                  交易哈希:{' '}
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${delegationTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#4a90e2', textDecoration: 'none' }}
+                  >
+                    {delegationTxHash.slice(0, 10)}...{delegationTxHash.slice(-8)}
+                  </a>
+                </p>
+              </div>
+            )}
 
             <div className="button-group">
               <button
-                onClick={handleRequestPermissions}
-                disabled={isLoading || !sessionKey}
+                onClick={handleTriggerDelegation}
+                disabled={isLoading}
                 className="primary-button"
               >
-                {isLoading ? '请求中...' : '请求权限（触发 EIP-7702 升级）'}
+                {isLoading ? '处理中...' : '🔐 触发 EIP-7702 Delegation'}
               </button>
-              <button onClick={() => setStep('connect')} className="secondary-button">
+              <button onClick={() => setStep('connect')} className="secondary-button" disabled={isLoading}>
                 返回
               </button>
             </div>
-
-            {permissions && (
-              <div className="success-box">
-                <strong>✅ 权限已授予!</strong>
-                <pre>{JSON.stringify(permissions, null, 2)}</pre>
-              </div>
-            )}
           </div>
         )}
 
-        {/* 步骤 2: 批量转账 */}
+        {/* 步骤 3: 批量转账 */}
         {step === 'transfer' && (
           <div className="step-section">
-            <h3>步骤 2: EIP-5792 批量转账</h3>
+            <h3>步骤 3: EIP-5792 批量转账</h3>
             <p>
               使用 <code>sendCalls</code> API 执行批量交易
               {capabilities?.supportsAtomicBatch && ' (原子批量模式)'}
