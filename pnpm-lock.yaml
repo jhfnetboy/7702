@@ -11,9 +11,6 @@ importers:
       '@aastar/shared-config':
         specifier: 0.3.6
         version: 0.3.6
-      '@metamask/delegation-toolkit':
-        specifier: ^0.13.0
-        version: 0.13.0(viem@2.39.3(typescript@5.9.3))
       '@metamask/smart-accounts-kit':
         specifier: ^0.1.0
         version: 0.1.0(viem@2.39.3(typescript@5.9.3))
@@ -488,19 +485,9 @@ packages:
     resolution: {integrity: sha512-leP40qoxhTmexfeY/neZ9XkhmUiq8fHh3ax4wmmTB5CG6VuXStn2LzLz875RiBtjwU3c4IqaZljxvwC1dUuWVw==}
     engines: {node: ^18.18 || >=20}
 
-  '@metamask/delegation-deployments@0.12.0':
-    resolution: {integrity: sha512-9SB5DhLAnbpIWbFxP3UKPXLhCt8iiRjBBjZ7hqF5dMXy9buBEDpCRg+FJYRxYRecwporrTVrv+NfKUyCbL2ncw==}
-    engines: {node: ^18.18 || >=20}
-
   '@metamask/delegation-deployments@0.14.0':
     resolution: {integrity: sha512-tQdBypR0JcJmRLlYF7Rvjv0EWWOgLdzgNmSQH40vN1hdBKqEqK37onMkMJWOjDxu3DiChdPDKZwXrVkN2elIcQ==}
     engines: {node: ^18.18 || >=20}
-
-  '@metamask/delegation-toolkit@0.13.0':
-    resolution: {integrity: sha512-SVc2gcnKQ8KQodugfuXMs49pHO1x9AYw3Wmdg4yBEsgm5TF5zPpWFmAj+bOL8q+Fn+mHJAibFIrJBtS970G9Dw==}
-    engines: {node: ^18.18 || >=20}
-    peerDependencies:
-      viem: ^2.31.4
 
   '@metamask/smart-accounts-kit@0.1.0':
     resolution: {integrity: sha512-8p+Q6m/oK37dnh2tsYwUgdPI7bC+XDdo0T+K7GFIrhSgeqPwFhR92wPsZs5X1xEvAFs3kRNABLaTjPWb5dZfRg==}
@@ -1340,21 +1327,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@metamask/delegation-deployments@0.12.0': {}
-
   '@metamask/delegation-deployments@0.14.0': {}
-
-  '@metamask/delegation-toolkit@0.13.0(viem@2.39.3(typescript@5.9.3))':
-    dependencies:
-      '@metamask/7715-permission-types': 0.3.0
-      '@metamask/delegation-abis': 0.11.0
-      '@metamask/delegation-core': 0.2.0
-      '@metamask/delegation-deployments': 0.12.0
-      buffer: 6.0.3
-      viem: 2.39.3(typescript@5.9.3)
-      webauthn-p256: 0.0.10
-    transitivePeerDependencies:
-      - supports-color
 
   '@metamask/smart-accounts-kit@0.1.0(viem@2.39.3(typescript@5.9.3))':
     dependencies:
