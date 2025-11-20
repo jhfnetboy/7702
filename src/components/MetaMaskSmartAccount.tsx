@@ -33,6 +33,7 @@ export function MetaMaskSmartAccount() {
   ])
   const [maxAmount, setMaxAmount] = useState('1')
   const [paymasterUrl, setPaymasterUrl] = useState('http://localhost:3001/api/sponsor')
+  const [showUpgradeNotice, setShowUpgradeNotice] = useState(false)
 
   /**
    * 步骤 1: 连接钱包并检查能力
@@ -41,8 +42,9 @@ export function MetaMaskSmartAccount() {
     try {
       // 检查 MetaMask 是否安装
       if (!window.ethereum) {
-        alert('请安装 MetaMask!')
-        return
+        console.error('❌ MetaMask not installed')
+        // 使用 hook 的 error state 显示错误
+        throw new Error('请安装 MetaMask 浏览器扩展')
       }
 
       // 请求连接
@@ -54,31 +56,24 @@ export function MetaMaskSmartAccount() {
 
       console.log('✅ Wallet capabilities:', caps)
 
-      // 检查 EIP-5792 支持情况并提供升级指导
+      // 检查 EIP-5792 支持情况
+      // 温和地显示通知，不使用侵入性的 alert/confirm
       if (!caps.supportsAtomicBatch) {
-        const currentVersion = window.ethereum?.version || 'unknown'
-        const upgradeMessage =
-          `⚠️ MetaMask 版本过低\n\n` +
-          `当前版本: ${currentVersion}\n` +
-          `需要版本: v12.0 或更高\n\n` +
-          `功能影响:\n` +
-          `• 批量交易（EIP-5792）不可用\n` +
-          `• 将回退到逐笔确认模式\n\n` +
-          `如何升级:\n` +
-          `1. 点击 MetaMask 图标 > 设置 > 关于\n` +
-          `2. 或访问 https://metamask.io/download/\n` +
-          `3. 下载最新版本并重新安装\n\n` +
-          `您可以继续使用，但体验会受影响。`
-
-        if (confirm(upgradeMessage + '\n\n是否在新标签页打开 MetaMask 下载页面？')) {
-          window.open('https://metamask.io/download/', '_blank')
-        }
+        setShowUpgradeNotice(true)
+        console.log(
+          `ℹ️ EIP-5792 批量交易检测为不支持。\n` +
+          `MetaMask 版本: ${window.ethereum?.version || 'unknown'}\n` +
+          `这可能是检测问题，或网络配置问题。\n` +
+          `应用将使用兼容模式（逐笔确认）。`
+        )
+      } else {
+        setShowUpgradeNotice(false)
       }
 
       setStep('permissions')
     } catch (err) {
-      console.error('连接失败:', err)
-      alert(`连接失败: ${err instanceof Error ? err.message : '未知错误'}`)
+      console.error('❌ 连接失败:', err)
+      // 错误已通过 hook 的 error state 显示，无需 alert
     }
   }
 
@@ -104,12 +99,12 @@ export function MetaMaskSmartAccount() {
       })
 
       console.log('✅ Permissions granted:', perms)
-      alert('✅ 权限已授予！现在可以执行 Gasless 批量转账')
+      // 成功后自动进入下一步，无需 alert
 
       setStep('transfer')
     } catch (err) {
-      console.error('权限请求失败:', err)
-      alert(`权限请求失败: ${err instanceof Error ? err.message : '未知错误'}`)
+      console.error('❌ 权限请求失败:', err)
+      // 错误已通过 hook 的 error state 显示，无需 alert
     }
   }
 
@@ -121,7 +116,7 @@ export function MetaMaskSmartAccount() {
       // 验证输入
       const validRecipients = recipients.filter((r) => r.address && r.amount)
       if (validRecipients.length === 0) {
-        alert('请至少添加一个有效的接收地址')
+        console.warn('⚠️ 请至少添加一个有效的接收地址')
         return
       }
 
@@ -136,10 +131,10 @@ export function MetaMaskSmartAccount() {
       })
 
       console.log('✅ Batch transfer completed, call ID:', callId)
-      alert(`✅ 批量转账成功！Call ID: ${callId}`)
+      console.log(`🎉 批量转账成功！`)
     } catch (err) {
-      console.error('批量转账失败:', err)
-      alert(`批量转账失败: ${err instanceof Error ? err.message : '未知错误'}`)
+      console.error('❌ 批量转账失败:', err)
+      // 错误已通过 hook 的 error state 显示，无需 alert
     }
   }
 
@@ -214,21 +209,41 @@ export function MetaMaskSmartAccount() {
                   </li>
                 </ul>
 
-                {/* 升级提示 */}
+                {/* 能力检测通知 */}
                 {!capabilities.supportsAtomicBatch && (
-                  <div style={{ marginTop: '12px', padding: '12px', background: '#fff3cd', borderRadius: '4px', fontSize: '14px' }}>
-                    <strong>⚠️ 建议升级 MetaMask</strong>
-                    <p style={{ margin: '8px 0', fontSize: '13px' }}>
-                      当前版本不支持 EIP-5792 批量交易，将使用逐笔确认模式。
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    background: '#e3f2fd',
+                    border: '1px solid #90caf9',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }}>
+                    <strong>ℹ️ 兼容模式</strong>
+                    <p style={{ margin: '8px 0', fontSize: '13px', lineHeight: '1.5' }}>
+                      {window.ethereum?.version && parseFloat(window.ethereum.version) >= 12
+                        ? `检测到 MetaMask ${window.ethereum.version}（最新版本），但 EIP-5792 能力未检测到。这可能是：`
+                        : '当前 MetaMask 版本不支持 EIP-5792 批量交易。'}
                     </p>
-                    <a
-                      href="https://metamask.io/download/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: '#0066cc', textDecoration: 'underline', fontSize: '13px' }}
-                    >
-                      下载 MetaMask v12+ →
-                    </a>
+                    {window.ethereum?.version && parseFloat(window.ethereum.version) >= 12 ? (
+                      <ul style={{ margin: '8px 0 8px 20px', fontSize: '12px', lineHeight: '1.6' }}>
+                        <li>网络配置问题（某些网络可能未启用）</li>
+                        <li>API 检测方式问题（正在改进中）</li>
+                        <li>MetaMask 实验性功能未开启</li>
+                      </ul>
+                    ) : (
+                      <a
+                        href="https://metamask.io/download/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#1976d2', textDecoration: 'none', fontSize: '13px', fontWeight: '500' }}
+                      >
+                        升级到 MetaMask v12+ →
+                      </a>
+                    )}
+                    <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#555' }}>
+                      💡 应用将使用兼容模式（逐笔确认），功能完全可用。
+                    </p>
                   </div>
                 )}
               </div>

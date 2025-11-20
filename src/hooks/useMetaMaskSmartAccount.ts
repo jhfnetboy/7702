@@ -157,7 +157,21 @@ export function useMetaMaskSmartAccount() {
         account,
       })
 
-      const chainCapabilities = capabilities[sepolia.id] || {}
+      // Debug: 打印完整的 capabilities 数据
+      console.log('🔍 Debug - Full capabilities:', JSON.stringify(capabilities, null, 2))
+      console.log('🔍 Debug - Chain ID:', sepolia.id, `(hex: ${sepolia.id.toString(16)})`)
+      console.log('🔍 Debug - Chain capabilities:', capabilities[sepolia.id])
+
+      // 尝试多种方式获取 chain capabilities
+      // MetaMask 可能使用十六进制或十进制的 chainId
+      const chainIdHex = `0x${sepolia.id.toString(16)}` as any
+      const chainCapabilities =
+        capabilities[sepolia.id] ||
+        capabilities[chainIdHex] ||
+        capabilities[String(sepolia.id)] ||
+        {}
+
+      console.log('🔍 Debug - Resolved chain capabilities:', chainCapabilities)
 
       // Check MetaMask version if available
       if (window.ethereum?.isMetaMask) {
@@ -175,6 +189,7 @@ export function useMetaMaskSmartAccount() {
         console.log('✅ EIP-5792 batch transactions supported')
       } else {
         console.warn('⚠️ Batch transactions not supported, will use fallback')
+        console.warn('⚠️ Debug - This might be a detection issue, not a MetaMask limitation')
       }
 
       return result
