@@ -170,3 +170,8 @@ cache_forge/
 out/
 lib/
 broadcast/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/

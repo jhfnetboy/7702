@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { MetaMaskConnect } from './components/MetaMaskConnect'
 import { EIP7702Demo } from './components/EIP7702Demo'
+import { MetaMaskSmartAccount } from './components/MetaMaskSmartAccount'
 import './App.css'
 
 export default function App() {
-  const [selectedTab, setSelectedTab] = useState<'dashboard' | 'demo'>('demo')
+  const [selectedTab, setSelectedTab] = useState<'dashboard' | 'demo' | 'metamask'>('metamask')
 
   return (
     <div className="app">
@@ -28,6 +29,12 @@ export default function App() {
         >
           EIP-7702 Demo
         </button>
+        <button
+          className={`nav-button ${selectedTab === 'metamask' ? 'active' : ''}`}
+          onClick={() => setSelectedTab('metamask')}
+        >
+          MetaMask SDK
+        </button>
       </nav>
 
       <main className="app-main">
@@ -40,6 +47,12 @@ export default function App() {
         {selectedTab === 'demo' && (
           <div className="demo-content">
             <EIP7702Demo />
+          </div>
+        )}
+
+        {selectedTab === 'metamask' && (
+          <div className="metamask-content">
+            <MetaMaskSmartAccount />
           </div>
         )}
       </main>

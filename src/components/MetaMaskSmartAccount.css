@@ -1,0 +1,304 @@
+/**
+ * MetaMask Smart Account Component Styles
+ */
+
+.metamask-smart-account {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.metamask-smart-account h2 {
+  text-align: center;
+  color: #1a1a1a;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+}
+
+/* Error Message */
+.error-message {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  color: #c00;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+/* Steps Indicator */
+.steps-indicator {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.steps-indicator .step {
+  flex: 1;
+  text-align: center;
+  padding: 0.75rem;
+  background: #f5f5f5;
+  color: #999;
+  border-radius: 8px;
+  margin: 0 0.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.steps-indicator .step.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.steps-indicator .step:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ccc;
+}
+
+/* Step Content */
+.step-content {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.step-content h3 {
+  margin-top: 0;
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="password"],
+.private-key-input,
+.address-input,
+.amount-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.5rem;
+  color: #888;
+  font-size: 0.875rem;
+}
+
+/* Checkbox */
+.form-group input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+/* Buttons */
+.primary-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.875rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 1rem;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.add-button:hover {
+  background: #45a049;
+}
+
+.remove-button {
+  background: #f44336;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  transition: background 0.3s ease;
+}
+
+.remove-button:hover {
+  background: #da190b;
+}
+
+/* Info Boxes */
+.account-info,
+.delegation-info {
+  background: #f8f9fa;
+  border-left: 4px solid #667eea;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}
+
+.account-info p,
+.delegation-info p {
+  margin: 0.5rem 0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.account-info p strong,
+.delegation-info p strong {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Recipients Section */
+.recipients-section {
+  margin-top: 1.5rem;
+}
+
+.recipients-section h4 {
+  margin-bottom: 1rem;
+  color: #555;
+}
+
+.recipient-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+
+.recipient-row .address-input {
+  flex: 2;
+}
+
+.recipient-row .amount-input {
+  flex: 1;
+}
+
+/* Total Amount */
+.total-amount {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f0f4f8;
+  border-radius: 6px;
+  text-align: right;
+  font-size: 1.125rem;
+}
+
+/* Contract Status */
+.contract-status {
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.contract-status h4 {
+  margin-top: 0;
+  color: #555;
+  margin-bottom: 1rem;
+}
+
+.contract-status ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.contract-status li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.contract-status li:last-child {
+  border-bottom: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .metamask-smart-account {
+    padding: 1rem;
+  }
+
+  .steps-indicator {
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .steps-indicator .step {
+    margin: 0.25rem 0;
+  }
+
+  .steps-indicator .step:not(:last-child)::after {
+    content: '↓';
+    right: auto;
+    left: 50%;
+    top: auto;
+    bottom: -1rem;
+    transform: translateX(-50%);
+  }
+
+  .recipient-row {
+    flex-direction: column;
+  }
+
+  .recipient-row .address-input,
+  .recipient-row .amount-input {
+    width: 100%;
+  }
+}
