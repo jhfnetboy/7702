@@ -145,8 +145,17 @@ export function useMetaMaskSmartAccount() {
     try {
       const client = createExtendedClient()
 
+      // 获取当前账户地址
+      const [account] = await client.getAddresses()
+      if (!account) {
+        throw new Error('No account connected')
+      }
+
       // Get wallet capabilities for current chain
-      const capabilities = await client.getCapabilities()
+      // EIP-5792 要求传入账户地址
+      const capabilities = await client.getCapabilities({
+        account,
+      })
 
       const chainCapabilities = capabilities[sepolia.id] || {}
 
