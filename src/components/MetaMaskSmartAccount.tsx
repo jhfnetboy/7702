@@ -54,8 +54,25 @@ export function MetaMaskSmartAccount() {
 
       console.log('✅ Wallet capabilities:', caps)
 
+      // 检查 EIP-5792 支持情况并提供升级指导
       if (!caps.supportsAtomicBatch) {
-        alert('⚠️ 您的 MetaMask 版本不支持批量交易（EIP-5792），请更新到最新版本')
+        const currentVersion = window.ethereum?.version || 'unknown'
+        const upgradeMessage =
+          `⚠️ MetaMask 版本过低\n\n` +
+          `当前版本: ${currentVersion}\n` +
+          `需要版本: v12.0 或更高\n\n` +
+          `功能影响:\n` +
+          `• 批量交易（EIP-5792）不可用\n` +
+          `• 将回退到逐笔确认模式\n\n` +
+          `如何升级:\n` +
+          `1. 点击 MetaMask 图标 > 设置 > 关于\n` +
+          `2. 或访问 https://metamask.io/download/\n` +
+          `3. 下载最新版本并重新安装\n\n` +
+          `您可以继续使用，但体验会受影响。`
+
+        if (confirm(upgradeMessage + '\n\n是否在新标签页打开 MetaMask 下载页面？')) {
+          window.open('https://metamask.io/download/', '_blank')
+        }
       }
 
       setStep('permissions')
@@ -192,7 +209,28 @@ export function MetaMaskSmartAccount() {
                     原子批量操作: {capabilities.supportsAtomicBatch ? '✅ 支持' : '❌ 不支持'}
                   </li>
                   <li>Paymaster: {capabilities.supportsPaymaster ? '✅ 支持' : '❌ 不支持'}</li>
+                  <li>
+                    MetaMask 版本: {window.ethereum?.version || 'unknown'}
+                  </li>
                 </ul>
+
+                {/* 升级提示 */}
+                {!capabilities.supportsAtomicBatch && (
+                  <div style={{ marginTop: '12px', padding: '12px', background: '#fff3cd', borderRadius: '4px', fontSize: '14px' }}>
+                    <strong>⚠️ 建议升级 MetaMask</strong>
+                    <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                      当前版本不支持 EIP-5792 批量交易，将使用逐笔确认模式。
+                    </p>
+                    <a
+                      href="https://metamask.io/download/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#0066cc', textDecoration: 'underline', fontSize: '13px' }}
+                    >
+                      下载 MetaMask v12+ →
+                    </a>
+                  </div>
+                )}
               </div>
             )}
           </div>

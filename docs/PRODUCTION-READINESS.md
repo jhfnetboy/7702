@@ -157,6 +157,45 @@ VITE_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 VITE_PAYMASTER_URL=https://your-paymaster-service.com/api/sponsor
 ```
 
+## MetaMask Version Requirements
+
+### Minimum Version: v12.0+
+
+**How to Check Your Version:**
+1. Click MetaMask extension icon
+2. Settings → About
+3. Look for "Version"
+
+**How to Upgrade:**
+
+#### Method 1: Auto-Update (Recommended)
+1. MetaMask auto-updates by default
+2. Restart browser to apply updates
+
+#### Method 2: Manual Update
+1. Visit https://metamask.io/download/
+2. Click "Download for [Your Browser]"
+3. Install/reinstall MetaMask
+4. Restore wallet using your Secret Recovery Phrase
+
+#### Method 3: Extension Store
+- **Chrome**: [Chrome Web Store](https://chrome.google.com/webstore/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn)
+- **Firefox**: [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/ether-metamask/)
+- **Edge**: [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/metamask/ejbalbakoplchlghecdalmeeeajnimhm)
+
+**Version Features:**
+- v12.0+: ✅ EIP-5792, ERC-7715, EIP-7702
+- v11.x: ❌ No batch transactions
+- v10.x: ❌ No Smart Account support
+
+### User Guidance in App
+
+Our app automatically:
+1. Detects MetaMask version
+2. Shows upgrade prompt if < v12.0
+3. Provides direct download link
+4. Falls back to sequential transactions
+
 ## Browser Compatibility
 
 | Browser | Support | Notes |
