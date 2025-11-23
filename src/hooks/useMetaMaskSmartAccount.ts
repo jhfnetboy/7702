@@ -276,9 +276,14 @@ export function useMetaMaskSmartAccount() {
       console.log('✅ Dummy call sent, MetaMask will prompt for upgrade')
       console.log('   Call ID:', callId)
 
+      // Handle case where callId is an object (e.g. { id: "..." })
+      const id = typeof callId === 'object' && callId !== null && 'id' in callId 
+        ? (callId as any).id 
+        : callId
+
       // 等待交易完成
       console.log('⏳ Waiting for upgrade transaction to complete...')
-      const statusResult = await client.waitForCallsStatus({ id: callId as any })
+      const statusResult = await client.waitForCallsStatus({ id: id as string })
 
       console.log('✅ EIP-7702 upgrade completed!')
       console.log('   Status:', statusResult)
@@ -485,14 +490,17 @@ export function useMetaMaskSmartAccount() {
           }),
         })
 
-        // sendCalls 返回的是 call ID (string)
-        const callId = typeof callResult === 'string' ? callResult : callResult
+        // sendCalls 返回的是 call ID (string) 或者对象 { id: string }
+        const rawCallId = callResult
+        const callId = typeof rawCallId === 'object' && rawCallId !== null && 'id' in rawCallId
+          ? (rawCallId as any).id
+          : rawCallId
 
         console.log('✅ Batch transfer submitted, call ID:', callId)
 
         // 等待交易完成
         console.log('⏳ Waiting for batch transfer to complete...')
-        const statusResult = await client.waitForCallsStatus({ id: callId as any })
+        const statusResult = await client.waitForCallsStatus({ id: callId as string })
 
         console.log('✅ Batch transfer completed:', statusResult)
 

@@ -4,8 +4,18 @@ import { contracts, ContractType, mockERC20Address, mockERC20Abi, sponsoredTrans
 import './EIP7702Demo.css'
 
 export const EIP7702Demo: React.FC = () => {
-  const { initializeContract, pingContract, loading, error, delegationTx, pingTx, getTransactionLink } =
-    useEIP7702()
+  const {
+    initializeContract,
+    pingContract,
+    loading,
+    error,
+    delegationTx,
+    pingTx,
+    getTransactionLink,
+    connectMetaMask,
+    authorizeWithMetaMask,
+    smartAccountAddress
+  } = useEIP7702()
 
   // Helper: 获取 Etherscan 地址链接
   const getAddressLink = (address: string) => `https://sepolia.etherscan.io/address/${address}`
@@ -72,6 +82,15 @@ export const EIP7702Demo: React.FC = () => {
       setTokenAddress(mockERC20Address)
     }
   }, [selectedContract])
+
+  // 自动填充 Smart Account 地址
+  useEffect(() => {
+    if (smartAccountAddress) {
+      setAuthorizerPrivateKey('') // Clear private key input
+      // We don't set authorizerPrivateKey state because it expects a string (key), 
+      // but we can use a separate state or just rely on smartAccountAddress
+    }
+  }, [smartAccountAddress])
 
   // 初始化代币地址（页面加载时）
   useEffect(() => {
@@ -150,6 +169,24 @@ export const EIP7702Demo: React.FC = () => {
       console.error('错误: 请输入合约地址')
       return
     }
+
+    // MetaMask Mode
+    if (smartAccountAddress) {
+      try {
+        setCurrentStep(1)
+        console.group('📋 步骤1: MetaMask 签署授权')
+        const auth = await authorizeWithMetaMask(contractAddress)
+        console.log('✓ 步骤1完成: MetaMask 成功签署授权')
+        console.groupEnd()
+        setAuthorization(auth)
+        setAuthorizationSigned(true)
+      } catch (err) {
+        console.error('MetaMask 签署失败:', err)
+      }
+      return
+    }
+
+    // Private Key Mode
     if (!authorizerPrivateKey) {
       console.error('错误: 缺少授权者私钥')
       return
@@ -951,19 +988,41 @@ export const EIP7702Demo: React.FC = () => {
       <div className="contract-input-section">
         <h3>🔑 配置授权参数</h3>
 
-        <div className="form-group">
-          <label>授权者私钥（Authorizer Private Key）:</label>
-          <input
-            type="password"
-            value={authorizerPrivateKey}
-            onChange={(e) => setAuthorizerPrivateKey(e.target.value)}
-            placeholder="0x..."
-            disabled={authorizationSigned}
-            className="contract-address-input"
-          />
-          {authorizerPrivateKey && !authorizationSigned && (
-            <p className="info-text">✓ 私钥已输入</p>
-          )}
+        <div className="dashboard-card">
+          <h3>1. 配置授权账户 (Authorizer)</h3>
+          <div className="form-group">
+            <label>连接方式</label>
+            <div className="connection-options" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+              <button
+                className={`btn ${smartAccountAddress ? 'btn-success' : 'btn-primary'}`}
+                onClick={connectMetaMask}
+                disabled={loading || !!smartAccountAddress}
+              >
+                {smartAccountAddress ? 'MetaMask 已连接' : '连接 MetaMask Smart Account'}
+              </button>
+            </div>
+
+            {smartAccountAddress ? (
+               <div className="account-info">
+                 <p><strong>Smart Account:</strong> {smartAccountAddress}</p>
+                 <p className="note">已连接 MetaMask Smart Accounts Kit</p>
+               </div>
+            ) : (
+              <>
+                <label>或者输入私钥 (测试用)</label>
+                <input
+                  type="password"
+                  value={authorizerPrivateKey}
+                  onChange={(e) => setAuthorizerPrivateKey(e.target.value)}
+                  placeholder="输入 Authorizer EOA 私钥"
+                  className="input-field"
+                />
+                <p className="note">
+                  注意: 这是将要被委托的 EOA 账户。请使用测试账户！
+                </p>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="form-group">
