@@ -218,15 +218,24 @@ export function useMetaMaskSmartAccount() {
       let delegationAddress: Address | null = null
 
       if (bytecode && bytecode.startsWith('0xef01')) {
-        isDelegated = true
-        // 提取 delegation address (0xef0100...address)
-        // EIP-7702 bytecode format: 0xef0100 + 20 bytes address
-        // 0xef0100 = 3 bytes = 6 chars
-        // address = 20 bytes = 40 chars
-        if (bytecode.length >= 46) {
-          delegationAddress = `0x${bytecode.slice(6, 46)}` as Address
+        // 提取 delegation address
+        // EIP-7702 bytecode format: 0xef01 (magic) + 00 (version) + 20 bytes address
+        // Total: 0xef0100 + address (3 bytes header + 20 bytes address)
+        if (bytecode.length >= 48) {
+          // Skip "0x" (2) + "ef01" (4) + "00" (2) = 8, then take 40 chars for address
+          delegationAddress = `0x${bytecode.slice(8, 48)}` as Address
+          
+          // Check if delegation address is zero address (revoked)
+          const isZeroAddress = delegationAddress === '0x0000000000000000000000000000000000000000'
+          
+          if (!isZeroAddress) {
+            isDelegated = true
+            console.log('✅ Account is already delegated (EIP-7702) to:', delegationAddress)
+          } else {
+            console.log('ℹ️ Account has zero delegation (revoked or never delegated)')
+            delegationAddress = null
+          }
         }
-        console.log('✅ Account is already delegated (EIP-7702) to:', delegationAddress)
       }
 
       // 更新状态
