@@ -221,7 +221,7 @@
 }
 
 .recipient-row .address-input {
-  flex: 2;
+  flex: 4;
 }
 
 .recipient-row .amount-input {
