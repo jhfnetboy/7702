@@ -141,6 +141,14 @@ export function MetaMaskSmartAccount() {
       // 保存交易哈希
       setRevokeHash(hash)
       
+      // 等待 2 秒确保交易完全生效
+      console.log('⏳ Waiting for state to update...')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // 强制刷新账户状态
+      console.log('🔄 Refreshing account state...')
+      await checkCapabilities()
+      
       // 撤销成功后返回连接步骤
       setStep('connect')
       setCapabilities(null)

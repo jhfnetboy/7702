@@ -213,7 +213,11 @@ export function useMetaMaskSmartAccount() {
       const balance = await publicClient.getBalance({ address: account })
 
       // 检查是否已授权 (EIP-7702)
-      const bytecode = await publicClient.getBytecode({ address: account })
+      // 使用 'latest' 确保获取最新状态，避免 RPC 缓存
+      const bytecode = await publicClient.getBytecode({ 
+        address: account,
+        blockTag: 'latest'
+      })
       let isDelegated = false
       let delegationAddress: Address | null = null
 
