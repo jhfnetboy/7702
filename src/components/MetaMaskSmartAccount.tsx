@@ -43,6 +43,7 @@ export function MetaMaskSmartAccount() {
   const [enablePaymaster, setEnablePaymaster] = useState(false)
   const [showUpgradeNotice, setShowUpgradeNotice] = useState(false)
   const [delegationAddress, setDelegationAddress] = useState('0x63c0c114B521E88A1A20bb92017177663496e32b') // Default 7702 delegation address
+  const [batchCallId, setBatchCallId] = useState<string>('') // Store batch transfer call ID
 
   /**
    * 步骤 1: 连接钱包并检查能力
@@ -156,6 +157,7 @@ export function MetaMaskSmartAccount() {
       })
 
       console.log('✅ Batch transfer completed, call ID:', callId)
+      setBatchCallId(callId)
       console.log(`🎉 批量转账成功！`)
     } catch (err) {
       console.error('❌ 批量转账失败:', err)
@@ -522,8 +524,40 @@ export function MetaMaskSmartAccount() {
                 返回
               </button>
             </div>
+
+            {batchCallId && (
+              <div className="success-box" style={{ marginTop: '20px' }}>
+                <strong>🎉 批量转账成功！</strong>
+                <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                  Call ID: <code style={{ fontSize: '11px' }}>{batchCallId}</code>
+                </p>
+                <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                  <a 
+                    href={`https://sepolia.etherscan.io/tx/${batchCallId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#155724', textDecoration: 'underline' }}
+                  >
+                    查看 Etherscan 交易详情 ↗
+                  </a>
+                </p>
+              </div>
+            )}
             
-            <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '20px' }}>
+            <div style={{ marginTop: '30px', borderTop: '1px solid #eee', paddingTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                <div>账户: <code style={{ color: '#333' }}>{capabilities?.account?.slice(0, 6)}...{capabilities?.account?.slice(-4)}</code></div>
+                <div style={{ marginTop: '4px' }}>
+                  已授权: <a 
+                    href={`https://sepolia.etherscan.io/address/${capabilities?.delegationAddress || delegationAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#4a90e2', textDecoration: 'none' }}
+                  >
+                    {(capabilities?.delegationAddress || delegationAddress)?.slice(0, 6)}...{(capabilities?.delegationAddress || delegationAddress)?.slice(-4)} ↗
+                  </a>
+                </div>
+              </div>
               <button 
                 onClick={handleRevoke} 
                 disabled={isLoading}
@@ -532,10 +566,10 @@ export function MetaMaskSmartAccount() {
                   background: '#fff', 
                   color: '#d32f2f', 
                   border: '1px solid #d32f2f',
-                  padding: '8px 16px',
+                  padding: '6px 12px',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '13px'
+                  fontSize: '12px'
                 }}
               >
                 🚫 撤销授权 (恢复为 EOA)
