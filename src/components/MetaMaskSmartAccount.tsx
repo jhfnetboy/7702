@@ -47,6 +47,7 @@ export function MetaMaskSmartAccount() {
   const [showUpgradeNotice, setShowUpgradeNotice] = useState(false)
   const [delegationAddress, setDelegationAddress] = useState('0x63c0c114B521E88A1A20bb92017177663496e32b') // Default 7702 delegation address
   const [batchCallId, setBatchCallId] = useState<string>('')
+  const [revokeHash, setRevokeHash] = useState<string>('')
   const [toasts, setToasts] = useState<Array<{id: string, type: 'success'|'error'|'warning'|'info', title: string, message: string}>>([])
 
   // Toast notification function
@@ -134,8 +135,11 @@ export function MetaMaskSmartAccount() {
   const handleRevoke = async () => {
     try {
       console.log('🚫 Revoking delegation...')
-      await gaslessRevoke()
-      console.log('✅ Revocation successful')
+      const hash = await gaslessRevoke()
+      console.log('✅ Revocation successful, hash:', hash)
+      
+      // 保存交易哈希
+      setRevokeHash(hash)
       
       // 撤销成功后返回连接步骤
       setStep('connect')
@@ -625,6 +629,32 @@ export function MetaMaskSmartAccount() {
                 🚫 撤销授权 (Gasless)
               </button>
             </div>
+
+            {/* 撤销交易成功显示 */}
+            {revokeHash && (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                background: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: '6px',
+                fontSize: '13px'
+              }}>
+                <div style={{ fontWeight: 'bold', color: '#0284c7', marginBottom: '6px' }}>
+                  ✅ 撤销交易已提交
+                </div>
+                <div style={{ color: '#666' }}>
+                  <a 
+                    href={`https://sepolia.etherscan.io/tx/${revokeHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#4a90e2', textDecoration: 'none' }}
+                  >
+                    查看 Etherscan 交易详情 ↗
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
