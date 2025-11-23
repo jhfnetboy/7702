@@ -23,6 +23,7 @@ export function MetaMaskSmartAccount() {
     checkCapabilities,
     triggerDelegation,
     gaslessUpgrade,
+    gaslessRevoke,
     revokeDelegation,
     requestPermissions,
     batchTransfer,
@@ -118,26 +119,26 @@ export function MetaMaskSmartAccount() {
   }
 
   /**
-   * 撤销授权 - 引导用户手动操作
-   * MetaMask 不支持编程方式撤销，需要在设置中手动操作
+   * 撤销授权 - Gasless
    */
   const handleRevoke = async () => {
-    const message = `撤销 EIP-7702 智能账户授权需要在 MetaMask 中手动操作：
+    if (!window.confirm('确定要撤销授权吗？这将使您的账户恢复为普通 EOA。\n\nRelayer 将代付 Gas 费用。')) {
+      return
+    }
 
-📱 操作步骤：
-
-1. 打开 MetaMask 扩展或移动应用
-2. 点击账户名称旁边的三个点 (⋮)
-3. 选择 "账户详情" (Account Details)
-4. 找到 "启用智能合约账户" (Enable Smart Contract Account)
-5. 关闭此选项的开关
-6. 确认交易（需支付少量 Gas 费用）
-
-✅ 完成后，您的账户将恢复为普通 EOA
-
-注意：此操作需要支付少量 Gas 费用（约 0.0001-0.001 ETH）`
-
-    alert(message)
+    try {
+      console.log('🚫 Revoking delegation...')
+      await gaslessRevoke()
+      console.log('✅ Revocation successful')
+      
+      // 撤销成功后返回连接步骤
+      setStep('connect')
+      setCapabilities(null)
+      alert('✅ 授权已撤销，账户已恢复为 EOA')
+    } catch (err) {
+      console.error('❌ Revocation failed:', err)
+      alert(`撤销失败: ${(err as Error).message}`)
+    }
   }
 
   /**
@@ -596,7 +597,7 @@ export function MetaMaskSmartAccount() {
                   fontSize: '12px'
                 }}
               >
-                🔧 如何撤销授权 (查看步骤)
+                🚫 撤销授权 (Gasless)
               </button>
             </div>
           </div>

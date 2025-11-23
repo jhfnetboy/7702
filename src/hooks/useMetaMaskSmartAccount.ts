@@ -386,6 +386,107 @@ export function useMetaMaskSmartAccount() {
   }, [createExtendedClient])
 
   /**
+   * Gasless Revoke (via Relayer)
+   * 通过 Relayer 撤销授权到零地址
+   */
+  const gaslessRevoke = useCallback(async (): Promise<string> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      console.log('🚫 Starting Gasless Revoke...')
+      const client = createExtendedClient()
+      const publicClient = createPublicClientInstance()
+      const [account] = await client.getAddresses()
+      
+      if (!account) throw new Error('No account connected')
+
+      // 1. 准备 EIP-7712 签名数据
+      console.log('✍️ Preparing authorization signature for revoke...')
+      
+      const chainId = await publicClient.getChainId()
+      const nonce = await publicClient.getTransactionCount({ address: account })
+      
+      // EIP-7702 Authorization 类型定义
+      const types = {
+        Authorization: [
+          { name: 'chainId', type: 'uint256' },
+          { name: 'address', type: 'address' },
+          { name: 'nonce', type: 'uint256' },
+        ],
+      }
+
+      const message = {
+        chainId: chainId,
+        address: '0x0000000000000000000000000000000000000000', // 零地址表示撤销
+        nonce: nonce,
+      }
+
+      // 2. 使用 eth_signTypedData_v4 签署
+      console.log('📝 Requesting signature from user...')
+      const signature = await (window.ethereum as any).request({
+        method: 'eth_signTypedData_v4',
+        params: [
+          account,
+          JSON.stringify({
+            types,
+            primaryType: 'Authorization',
+            domain: {
+              name: 'Ethereum',
+              version: '1',
+              chainId: chainId,
+            },
+            message,
+          }),
+        ],
+      })
+
+      console.log('✅ Authorization signed')
+
+      // 3. 构造 authorization 对象
+      const r = `0x${signature.slice(2, 66)}` as `0x${string}`
+      const s = `0x${signature.slice(66, 130)}` as `0x${string}`
+      const yParity = parseInt(signature.slice(130, 132), 16) as 0 | 1
+
+      const authorization = {
+        chainId: chainId,
+        address: '0x0000000000000000000000000000000000000000' as Address,
+        nonce: nonce,
+        r,
+        s,
+        yParity,
+      }
+
+      // 4. 发送给 Relayer
+      console.log('🚀 Sending to Relayer Service...')
+      const response = await fetch('http://localhost:3000/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorization, account }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Relayer request failed')
+      }
+
+      const result = await response.json()
+      console.log('✅ Gasless revoke successful!', result)
+
+      setState((prev) => ({ ...prev, isDelegated: false, delegationAddress: null, isLoading: false }))
+      return result.hash
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Gasless revoke failed'
+      console.error('❌ Gasless revoke failed:', error)
+      setState((prev) => ({
+        ...prev,
+        error: errorMsg,
+        isLoading: false,
+      }))
+      throw error
+    }
+  }, [createExtendedClient, createPublicClientInstance])
+
+  /**
    * 撤销授权 (EIP-7702)
    * 将账户委托给 0x0000...0000
    */
@@ -719,6 +820,7 @@ export function useMetaMaskSmartAccount() {
     checkCapabilities,
     triggerDelegation, // ✨ 新增：EIP-7702 delegation (User pays)
     gaslessUpgrade, // ✨ 新增：Gasless Upgrade (Relayer pays)
+    gaslessRevoke, // ✨ 新增：Gasless Revoke (Relayer pays)
     revokeDelegation, // ✨ 新增：撤销授权
     requestPermissions,
     batchTransfer,

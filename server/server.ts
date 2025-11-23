@@ -82,6 +82,41 @@ app.post('/upgrade', async (req, res) => {
   }
 })
 
+/**
+ * POST /revoke
+ * Submits an EIP-7702 revocation transaction paid by the Relayer.
+ */
+app.post('/revoke', async (req, res) => {
+  try {
+    const { authorization, account: userAccount } = req.body
+
+    if (!authorization || !userAccount) {
+      return res.status(400).json({ error: 'Missing authorization or account data' })
+    }
+
+    console.log('🚫 Received revoke request for:', userAccount)
+    console.log('   Authorization:', authorization)
+
+    // Construct the transaction to revoke (delegate to zero address)
+    const hash = await client.sendTransaction({
+      to: userAccount, // Send to user's account
+      value: 0n,
+      authorizationList: [authorization],
+    })
+
+    console.log('✅ Revoke transaction sent:', hash)
+
+    // Wait for receipt
+    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+    console.log('✅ Revoke confirmed in block:', receipt.blockNumber)
+
+    res.json({ success: true, hash, blockNumber: receipt.blockNumber.toString() })
+  } catch (error) {
+    console.error('❌ Revoke failed:', error)
+    res.status(500).json({ error: (error as Error).message })
+  }
+})
+
 // Start server
 app.listen(port, () => {
   console.log(`⚡️ Server listening at http://localhost:${port}`)
