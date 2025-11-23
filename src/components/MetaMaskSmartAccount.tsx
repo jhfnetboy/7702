@@ -46,7 +46,17 @@ export function MetaMaskSmartAccount() {
   const [enableGaslessUpgrade, setEnableGaslessUpgrade] = useState(false) // Toggle for gasless upgrade
   const [showUpgradeNotice, setShowUpgradeNotice] = useState(false)
   const [delegationAddress, setDelegationAddress] = useState('0x63c0c114B521E88A1A20bb92017177663496e32b') // Default 7702 delegation address
-  const [batchCallId, setBatchCallId] = useState<string>('') // Store batch transfer call ID
+  const [batchCallId, setBatchCallId] = useState<string>('')
+  const [toasts, setToasts] = useState<Array<{id: string, type: 'success'|'error'|'warning'|'info', title: string, message: string}>>([])
+
+  // Toast notification function
+  const showToast = (type: 'success'|'error'|'warning'|'info', title: string, message: string) => {
+    const id = Date.now().toString()
+    setToasts(prev => [...prev, { id, type, title, message }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(toast => toast.id !== id))
+    }, 5000)
+  }
 
   /**
    * 步骤 1: 连接钱包并检查能力
@@ -122,10 +132,6 @@ export function MetaMaskSmartAccount() {
    * 撤销授权 - Gasless
    */
   const handleRevoke = async () => {
-    if (!window.confirm('确定要撤销授权吗？这将使您的账户恢复为普通 EOA。\n\nRelayer 将代付 Gas 费用。')) {
-      return
-    }
-
     try {
       console.log('🚫 Revoking delegation...')
       await gaslessRevoke()
@@ -134,10 +140,10 @@ export function MetaMaskSmartAccount() {
       // 撤销成功后返回连接步骤
       setStep('connect')
       setCapabilities(null)
-      alert('✅ 授权已撤销，账户已恢复为 EOA')
+      showToast('success', '撤销成功', '授权已撤销，账户已恢复为 EOA')
     } catch (err) {
       console.error('❌ Revocation failed:', err)
-      alert(`撤销失败: ${(err as Error).message}`)
+      showToast('error', '撤销失败', (err as Error).message)
     }
   }
 
@@ -210,6 +216,25 @@ export function MetaMaskSmartAccount() {
 
   return (
     <div className="metamask-smart-account">
+      {/* Toast Notifications */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`toast ${toast.type}`}>
+            <span className="toast-icon">
+              {toast.type === 'success' && '✅'}
+              {toast.type === 'error' && '❌'}
+              {toast.type === 'warning' && '⚠️'}
+              {toast.type === 'info' && 'ℹ️'}
+            </span>
+            <div className="toast-content">
+              <div className="toast-title">{toast.title}</div>
+              <div className="toast-message">{toast.message}</div>
+            </div>
+            <button className="toast-close" onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}>×</button>
+          </div>
+        ))}
+      </div>
+
       <div className="card">
         <h2>MetaMask Smart Account (EIP-7702)</h2>
         <p className="subtitle">使用 ERC-7715 和 EIP-5792 标准</p>
