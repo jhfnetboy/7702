@@ -22,9 +22,11 @@ export function MetaMaskSmartAccount() {
     balance,
     checkCapabilities,
     triggerDelegation,
+    revokeDelegation,
     requestPermissions,
     batchTransfer,
     reset,
+    isDelegated,
   } = useMetaMaskSmartAccount()
 
   // UI 状态
@@ -37,8 +39,10 @@ export function MetaMaskSmartAccount() {
     { address: '', amount: '' },
   ])
   const [maxAmount, setMaxAmount] = useState('1')
-  const [paymasterUrl, setPaymasterUrl] = useState('http://localhost:3001/api/sponsor')
+  const [paymasterUrl, setPaymasterUrl] = useState('')
+  const [enablePaymaster, setEnablePaymaster] = useState(false)
   const [showUpgradeNotice, setShowUpgradeNotice] = useState(false)
+  const [delegationAddress, setDelegationAddress] = useState('0x63c0c114B521E88A1A20bb92017177663496e32b') // Default 7702 delegation address
 
   /**
    * 步骤 1: 连接钱包并检查能力
@@ -73,8 +77,14 @@ export function MetaMaskSmartAccount() {
         setShowUpgradeNotice(false)
       }
 
-      // 进入升级步骤
-      setStep('upgrade')
+      // 检查是否已授权，如果是则直接进入转账步骤
+      if (caps.isDelegated) {
+        console.log('✅ 检测到已授权，跳过升级步骤')
+        setStep('transfer')
+      } else {
+        // 进入升级步骤
+        setStep('upgrade')
+      }
     } catch (err) {
       console.error('❌ 连接失败:', err)
       // 错误已通过 hook 的 error state 显示，无需 alert
@@ -102,6 +112,28 @@ export function MetaMaskSmartAccount() {
   }
 
   /**
+   * 撤销授权
+   */
+  const handleRevoke = async () => {
+    if (!window.confirm('确定要撤销授权吗？这将使您的账户恢复为普通 EOA。')) {
+      return
+    }
+
+    try {
+      console.log('🚫 Revoking delegation...')
+      await revokeDelegation()
+      console.log('✅ Revocation successful')
+      
+      // 撤销成功后返回连接步骤
+      setStep('connect')
+      setCapabilities(null)
+      alert('授权已撤销，账户已恢复为 EOA')
+    } catch (err) {
+      console.error('❌ Revocation failed:', err)
+    }
+  }
+
+  /**
    * 步骤 3: 执行批量转账
    */
   const handleBatchTransfer = async () => {
@@ -120,7 +152,7 @@ export function MetaMaskSmartAccount() {
           address: r.address as Address,
           amount: parseEther(r.amount),
         })),
-        paymasterUrl: paymasterUrl || undefined,
+        paymasterUrl: enablePaymaster ? paymasterUrl : undefined,
       })
 
       console.log('✅ Batch transfer completed, call ID:', callId)
@@ -241,11 +273,11 @@ export function MetaMaskSmartAccount() {
                   }}>
                     <strong>ℹ️ 兼容模式</strong>
                     <p style={{ margin: '8px 0', fontSize: '13px', lineHeight: '1.5' }}>
-                      {window.ethereum?.version && parseFloat(window.ethereum.version) >= 12
-                        ? `检测到 MetaMask ${window.ethereum.version}（最新版本），但 EIP-5792 能力未检测到。这可能是：`
+                      {(window.ethereum as any)?.version && parseFloat((window.ethereum as any).version) >= 12
+                        ? `检测到 MetaMask ${(window.ethereum as any).version}（最新版本），但 EIP-5792 能力未检测到。这可能是：`
                         : '当前 MetaMask 版本不支持 EIP-5792 批量交易。'}
                     </p>
-                    {window.ethereum?.version && parseFloat(window.ethereum.version) >= 12 ? (
+                    {(window.ethereum as any)?.version && parseFloat((window.ethereum as any).version) >= 12 ? (
                       <ul style={{ margin: '8px 0 8px 20px', fontSize: '12px', lineHeight: '1.6' }}>
                         <li>网络配置问题（某些网络可能未启用）</li>
                         <li>API 检测方式问题（正在改进中）</li>
@@ -275,78 +307,139 @@ export function MetaMaskSmartAccount() {
         {step === 'upgrade' && (
           <div className="step-section">
             <h3>步骤 2: EIP-7702 Smart Account 升级</h3>
-            <p>
-              将您的 EOA（外部账户）升级为 Smart Account（智能账户）
-            </p>
-
-            <div className="info-box">
-              <h4>升级说明：</h4>
-              <p style={{ margin: '8px 0', fontSize: '14px', lineHeight: '1.6' }}>
-                点击下方按钮后，MetaMask 会自动弹窗提示您升级到 Smart Account（EIP-7702）。
-                这是一次性操作，升级后您的 EOA 将获得以下功能：
-              </p>
-              <ul style={{ margin: '8px 0 8px 20px', fontSize: '13px', lineHeight: '1.6' }}>
-                <li>✅ <strong>批量交易</strong> - 一次确认，多笔交易原子执行</li>
-                <li>✅ <strong>Gasless 交易</strong> - 使用 Paymaster 代付 Gas 费用</li>
-                <li>✅ <strong>委托权限</strong> - 授权第三方代表您执行交易</li>
-                <li>✅ <strong>更多账户抽象功能</strong></li>
-              </ul>
-
-              <div style={{
-                marginTop: '12px',
-                padding: '10px 12px',
-                background: '#e3f2fd',
-                border: '1px solid #2196f3',
-                borderRadius: '4px',
-                fontSize: '13px',
-                lineHeight: '1.6'
-              }}>
-                <strong>🔐 技术细节：</strong>
-                <ul style={{ margin: '4px 0 0 20px', paddingLeft: 0 }}>
-                  <li>升级通过发送一个 dummy batch call 触发</li>
-                  <li>MetaMask 检测到您是 EOA 后会提示升级</li>
-                  <li>您的账户将委托给 MetaMask EIP-7702 Delegator 合约</li>
-                  <li>合约地址: <code style={{ fontSize: '11px' }}>0x63c0...e32b</code></li>
-                </ul>
-              </div>
-
-              <div style={{
-                marginTop: '12px',
-                padding: '8px 12px',
-                background: '#fff3cd',
-                border: '1px solid #ffc107',
-                borderRadius: '4px',
-                fontSize: '13px',
-                color: '#856404'
-              }}>
-                💡 <strong>注意：</strong>此操作需要支付少量 Gas 费用（大约 0.0001-0.001 ETH）
-              </div>
-            </div>
-
-            {upgradeCallId && (
+            
+            {capabilities?.isDelegated ? (
               <div className="success-box">
-                <strong>✅ 升级完成！</strong>
+                <strong>✅ 账户已授权 (EIP-7702)</strong>
                 <p style={{ margin: '8px 0', fontSize: '13px' }}>
-                  Call ID: <code style={{ fontSize: '11px' }}>{upgradeCallId}</code>
+                  Delegation 合约: <code style={{ fontSize: '11px' }}>{capabilities.delegationAddress || delegationAddress}</code>
                 </p>
+                {upgradeCallId && (
+                  <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                    <a 
+                      href={`https://sepolia.etherscan.io/tx/${upgradeCallId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#155724', textDecoration: 'underline' }}
+                    >
+                      查看最近升级交易详情 ↗
+                    </a>
+                  </p>
+                )}
                 <p style={{ margin: '8px 0', fontSize: '13px', color: '#666' }}>
-                  您的账户现在是 Smart Account，可以使用批量交易等高级功能！
+                  您的账户已经是 Smart Account，可以直接使用批量交易功能。
                 </p>
+                
+                <div className="button-group" style={{ marginTop: '16px' }}>
+                  <button
+                    onClick={() => setStep('transfer')}
+                    className="primary-button"
+                  >
+                    下一步: 批量转账
+                  </button>
+                  <button 
+                    onClick={handleRevoke}
+                    className="danger-button"
+                    style={{ 
+                      background: '#fff', 
+                      color: '#d32f2f', 
+                      border: '1px solid #d32f2f',
+                      marginLeft: '12px'
+                    }}
+                  >
+                    撤销授权
+                  </button>
+                </div>
               </div>
-            )}
+            ) : (
+              <>
+                <p>
+                  将您的 EOA（外部账户）升级为 Smart Account（智能账户）
+                </p>
 
-            <div className="button-group">
-              <button
-                onClick={handleUpgrade}
-                disabled={isLoading}
-                className="primary-button"
-              >
-                {isLoading ? '升级中...' : '🔐 升级到 Smart Account'}
-              </button>
-              <button onClick={() => setStep('connect')} className="secondary-button" disabled={isLoading}>
-                返回
-              </button>
-            </div>
+                <div className="info-box">
+                  <h4>升级说明：</h4>
+                  <p style={{ margin: '8px 0', fontSize: '14px', lineHeight: '1.6' }}>
+                    点击下方按钮后，MetaMask 会自动弹窗提示您升级到 Smart Account（EIP-7702）。
+                    这是一次性操作，升级后您的 EOA 将获得以下功能：
+                  </p>
+                  <ul style={{ margin: '8px 0 8px 20px', fontSize: '13px', lineHeight: '1.6' }}>
+                    <li>✅ <strong>批量交易</strong> - 一次确认，多笔交易原子执行</li>
+                    <li>✅ <strong>Gasless 交易</strong> - 使用 Paymaster 代付 Gas 费用</li>
+                    <li>✅ <strong>委托权限</strong> - 授权第三方代表您执行交易</li>
+                    <li>✅ <strong>更多账户抽象功能</strong></li>
+                  </ul>
+
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px 12px',
+                    background: '#e3f2fd',
+                    border: '1px solid #2196f3',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    lineHeight: '1.6'
+                  }}>
+                    <strong>🔐 技术细节：</strong>
+                    <ul style={{ margin: '4px 0 0 20px', paddingLeft: 0 }}>
+                      <li>升级通过发送一个 dummy batch call 触发</li>
+                      <li>MetaMask 检测到您是 EOA 后会提示升级</li>
+                      <li>您的账户将委托给 MetaMask EIP-7702 Delegator 合约</li>
+                      <li>合约地址: <code style={{ fontSize: '11px' }}>0x63c0...e32b</code></li>
+                    </ul>
+                  </div>
+
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: '#fff3cd',
+                    border: '1px solid #ffc107',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    color: '#856404'
+                  }}>
+                    💡 <strong>注意：</strong>此操作需要支付少量 Gas 费用（大约 0.0001-0.001 ETH）
+                  </div>
+                </div>
+
+                {upgradeCallId && (
+                  <div className="success-box">
+                    <strong>✅ 升级完成！</strong>
+                    <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                      Call ID: <code style={{ fontSize: '11px' }}>{upgradeCallId}</code>
+                    </p>
+                    <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                      <a 
+                        href={`https://sepolia.etherscan.io/tx/${upgradeCallId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#155724', textDecoration: 'underline' }}
+                      >
+                        查看 Etherscan 交易详情 ↗
+                      </a>
+                    </p>
+                    <p style={{ margin: '8px 0', fontSize: '13px' }}>
+                      Delegation 合约: <code style={{ fontSize: '11px' }}>{delegationAddress}</code>
+                    </p>
+                    <p style={{ margin: '8px 0', fontSize: '13px', color: '#666' }}>
+                      您的账户现在是 Smart Account，可以使用批量交易等高级功能！
+                    </p>
+                  </div>
+                )}
+
+                <div className="button-group">
+                  <button
+                    onClick={handleUpgrade}
+                    disabled={isLoading}
+                    className="primary-button"
+                  >
+                    {isLoading ? '升级中...' : '🔐 升级到 Smart Account'}
+                  </button>
+                  <button onClick={() => setStep('connect')} className="secondary-button" disabled={isLoading}>
+                    返回
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -360,15 +453,29 @@ export function MetaMaskSmartAccount() {
             </p>
 
             <div className="form-group">
-              <label>Paymaster 服务 URL (可选):</label>
-              <input
-                type="text"
-                value={paymasterUrl}
-                onChange={(e) => setPaymasterUrl(e.target.value)}
-                placeholder="http://localhost:3001/api/sponsor"
-                className="input-field"
-              />
-              <small>留空则用户自己支付 Gas</small>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="enablePaymaster"
+                  checked={enablePaymaster}
+                  onChange={(e) => setEnablePaymaster(e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                <label htmlFor="enablePaymaster" style={{ marginBottom: 0 }}>启用 Paymaster (Gasless)</label>
+              </div>
+              
+              {enablePaymaster && (
+                <>
+                  <input
+                    type="text"
+                    value={paymasterUrl}
+                    onChange={(e) => setPaymasterUrl(e.target.value)}
+                    placeholder="Paymaster Service URL"
+                    className="input-field"
+                  />
+                  <small>输入支持 EIP-7677 的 Paymaster URL</small>
+                </>
+              )}
             </div>
 
             <div className="recipients-section">
@@ -413,6 +520,25 @@ export function MetaMaskSmartAccount() {
               </button>
               <button onClick={() => setStep('connect')} className="secondary-button">
                 返回
+              </button>
+            </div>
+            
+            <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '20px' }}>
+              <button 
+                onClick={handleRevoke} 
+                disabled={isLoading}
+                className="danger-button"
+                style={{ 
+                  background: '#fff', 
+                  color: '#d32f2f', 
+                  border: '1px solid #d32f2f',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+              >
+                🚫 撤销授权 (恢复为 EOA)
               </button>
             </div>
           </div>

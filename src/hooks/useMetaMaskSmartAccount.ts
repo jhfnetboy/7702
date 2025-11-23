@@ -41,8 +41,8 @@ import type {
 
 import { erc7715ProviderActions } from '@metamask/smart-accounts-kit/actions'
 
-// ✅ 使用 viem 的 EIP-5792
-import { eip5792Actions } from 'viem/experimental'
+// ✅ 使用 viem 的 EIP-5792 和 EIP-7702
+import { eip5792Actions, eip7702Actions } from 'viem/experimental'
 
 // 配置
 import { CONTRACTS, getContractAddress } from '../config/shared-config-adapter'
@@ -82,6 +82,8 @@ export interface WalletCapabilities {
   allCapabilities: Record<string, any> // 所有能力的原始数据
   account: Address // 账户地址
   balance: bigint // 账户余额
+  isDelegated: boolean // 是否已授权
+  delegationAddress?: Address // 授权的合约地址
 }
 
 /**
@@ -93,6 +95,8 @@ interface SmartAccountState {
   error: string | null
   account: Address | null
   balance: bigint | null
+  isDelegated: boolean
+  delegationAddress: Address | null
 }
 
 // ==================== Hook ====================
@@ -104,6 +108,8 @@ export function useMetaMaskSmartAccount() {
     error: null,
     account: null,
     balance: null,
+    isDelegated: false,
+    delegationAddress: null,
   })
 
   /**
@@ -121,6 +127,7 @@ export function useMetaMaskSmartAccount() {
     })
       .extend(erc7715ProviderActions()) // ERC-7715: 权限请求
       .extend(eip5792Actions()) // EIP-5792: 批量交易
+      .extend(eip7702Actions) // EIP-7702: 授权操作
   }, [])
 
   /**
@@ -205,14 +212,33 @@ export function useMetaMaskSmartAccount() {
       const publicClient = createPublicClientInstance()
       const balance = await publicClient.getBalance({ address: account })
 
+      // 检查是否已授权 (EIP-7702)
+      const bytecode = await publicClient.getBytecode({ address: account })
+      let isDelegated = false
+      let delegationAddress: Address | null = null
+
+      if (bytecode && bytecode.startsWith('0xef01')) {
+        isDelegated = true
+        // 提取 delegation address (0xef0100...address)
+        // EIP-7702 bytecode format: 0xef0100 + 20 bytes address
+        // 0xef0100 = 3 bytes = 6 chars
+        // address = 20 bytes = 40 chars
+        if (bytecode.length >= 46) {
+          delegationAddress = `0x${bytecode.slice(6, 46)}` as Address
+        }
+        console.log('✅ Account is already delegated (EIP-7702) to:', delegationAddress)
+      }
+
       // 更新状态
-      setState((prev) => ({ ...prev, account, balance }))
+      setState((prev) => ({ ...prev, account, balance, isDelegated, delegationAddress }))
 
       // 返回结果包含账户和余额
       return {
         ...result,
         account,
         balance,
+        isDelegated,
+        delegationAddress: delegationAddress || undefined,
       }
     } catch (error) {
       console.error('❌ Failed to get capabilities:', error)
@@ -302,6 +328,64 @@ export function useMetaMaskSmartAccount() {
       throw error
     }
   }, [createExtendedClient])
+
+  /**
+   * 撤销授权 (EIP-7702)
+   * 将账户委托给 0x0000...0000
+   */
+  const revokeDelegation = useCallback(async () => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      console.log('🚫 Revoking EIP-7702 delegation...')
+
+      const client = createExtendedClient()
+      const [account] = await client.getAddresses()
+      
+      if (!account) throw new Error('No account connected')
+
+      // 1. 签署授权给 0 地址
+      console.log('✍️ Signing authorization to revoke (delegate to 0x0)...')
+      const authorization = await client.signAuthorization({
+        account,
+        contractAddress: '0x0000000000000000000000000000000000000000',
+        delegate: true // 确保是 delegate 操作
+      })
+
+      console.log('✅ Authorization signed:', authorization)
+
+      // 2. 发送交易以应用授权
+      console.log('📤 Sending transaction to apply revocation...')
+      const hash = await client.sendTransaction({
+        account,
+        to: account, // 发送给自己
+        value: 0n,
+        authorizationList: [authorization],
+      })
+
+      console.log('✅ Revocation transaction sent:', hash)
+      
+      // 等待交易确认
+      const publicClient = createPublicClientInstance()
+      await publicClient.waitForTransactionReceipt({ hash })
+      
+      console.log('✅ Revocation confirmed')
+      
+      // 更新状态
+      setState((prev) => ({ ...prev, isDelegated: false, isLoading: false }))
+      
+      return hash
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to revoke delegation'
+      console.error('❌ Revocation failed:', error)
+      setState((prev) => ({
+        ...prev,
+        error: errorMsg,
+        isLoading: false,
+      }))
+      throw error
+    }
+  }, [createExtendedClient, createPublicClientInstance])
 
   /**
    * 请求执行权限（ERC-7715）
@@ -575,6 +659,7 @@ export function useMetaMaskSmartAccount() {
     // 方法
     checkCapabilities,
     triggerDelegation, // ✨ 新增：EIP-7702 delegation
+    revokeDelegation, // ✨ 新增：撤销授权
     requestPermissions,
     batchTransfer,
     getCallsStatus,
