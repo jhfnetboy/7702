@@ -330,6 +330,62 @@ export function useMetaMaskSmartAccount() {
   }, [createExtendedClient])
 
   /**
+   * Gasless EIP-7702 Upgrade (via Relayer)
+   */
+  const gaslessUpgrade = useCallback(async (): Promise<string> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      console.log('⛽️ Starting Gasless Upgrade...')
+      const client = createExtendedClient()
+      const [account] = await client.getAddresses()
+      
+      if (!account) throw new Error('No account connected')
+
+      // 1. Sign Authorization
+      console.log('✍️ Signing authorization for upgrade...')
+      // MetaMask's Delegator Contract Address on Sepolia
+      const DELEGATOR_ADDRESS = '0x63c0c114B521E88A1A20bb92017177663496e32b'
+      
+      const authorization = await client.signAuthorization({
+        account,
+        contractAddress: DELEGATOR_ADDRESS as Address,
+        delegate: true
+      })
+
+      console.log('✅ Authorization signed:', authorization)
+
+      // 2. Send to Relayer
+      console.log('🚀 Sending to Relayer Service...')
+      const response = await fetch('http://localhost:3000/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorization }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Relayer request failed')
+      }
+
+      const result = await response.json()
+      console.log('✅ Gasless upgrade successful!', result)
+
+      setState((prev) => ({ ...prev, isLoading: false }))
+      return result.hash
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Gasless upgrade failed'
+      console.error('❌ Gasless upgrade failed:', error)
+      setState((prev) => ({
+        ...prev,
+        error: errorMsg,
+        isLoading: false,
+      }))
+      throw error
+    }
+  }, [createExtendedClient])
+
+  /**
    * 撤销授权 (EIP-7702)
    * 将账户委托给 0x0000...0000
    */
@@ -344,37 +400,40 @@ export function useMetaMaskSmartAccount() {
       
       if (!account) throw new Error('No account connected')
 
-      // 1. 签署授权给 0 地址
-      console.log('✍️ Signing authorization to revoke (delegate to 0x0)...')
-      const authorization = await client.signAuthorization({
-        account,
-        contractAddress: '0x0000000000000000000000000000000000000000',
-        delegate: true // 确保是 delegate 操作
-      })
-
-      console.log('✅ Authorization signed:', authorization)
-
-      // 2. 发送交易以应用授权
-      console.log('📤 Sending transaction to apply revocation...')
-      const hash = await client.sendTransaction({
-        account,
-        to: account, // 发送给自己
-        value: 0n,
-        authorizationList: [authorization],
-      })
-
-      console.log('✅ Revocation transaction sent:', hash)
+      // 使用 sendCalls 触发 MetaMask 撤销授权
+      // MetaMask 会自动处理授权到零地址的逻辑
+      console.log('📤 Sending revoke request via MetaMask...')
       
+      // Send a dummy call to trigger MetaMask's authorization flow
+      // MetaMask will detect the need to revoke and prompt the user
+      const callId = await client.sendCalls({
+        calls: [
+          {
+            to: '0x0000000000000000000000000000000000000000' as Address,
+            value: 0n,
+          },
+        ],
+        // @ts-ignore
+        experimental_fallback: true,
+      })
+
+      console.log('✅ Revoke request sent:', callId)
+
+      // Handle case where callId is an object
+      const id = typeof callId === 'object' && callId !== null && 'id' in callId 
+        ? (callId as any).id 
+        : callId
+
       // 等待交易确认
-      const publicClient = createPublicClientInstance()
-      await publicClient.waitForTransactionReceipt({ hash })
+      console.log('⏳ Waiting for revocation to complete...')
+      await client.waitForCallsStatus({ id: id as string })
       
       console.log('✅ Revocation confirmed')
       
       // 更新状态
-      setState((prev) => ({ ...prev, isDelegated: false, isLoading: false }))
+      setState((prev) => ({ ...prev, isDelegated: false, delegationAddress: null, isLoading: false }))
       
-      return hash
+      return id as string
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to revoke delegation'
       console.error('❌ Revocation failed:', error)
@@ -385,7 +444,7 @@ export function useMetaMaskSmartAccount() {
       }))
       throw error
     }
-  }, [createExtendedClient, createPublicClientInstance])
+  }, [createExtendedClient])
 
   /**
    * 请求执行权限（ERC-7715）
@@ -658,7 +717,8 @@ export function useMetaMaskSmartAccount() {
 
     // 方法
     checkCapabilities,
-    triggerDelegation, // ✨ 新增：EIP-7702 delegation
+    triggerDelegation, // ✨ 新增：EIP-7702 delegation (User pays)
+    gaslessUpgrade, // ✨ 新增：Gasless Upgrade (Relayer pays)
     revokeDelegation, // ✨ 新增：撤销授权
     requestPermissions,
     batchTransfer,

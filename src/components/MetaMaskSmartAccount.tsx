@@ -22,6 +22,7 @@ export function MetaMaskSmartAccount() {
     balance,
     checkCapabilities,
     triggerDelegation,
+    gaslessUpgrade,
     revokeDelegation,
     requestPermissions,
     batchTransfer,
@@ -41,6 +42,7 @@ export function MetaMaskSmartAccount() {
   const [maxAmount, setMaxAmount] = useState('1')
   const [paymasterUrl, setPaymasterUrl] = useState('')
   const [enablePaymaster, setEnablePaymaster] = useState(false)
+  const [enableGaslessUpgrade, setEnableGaslessUpgrade] = useState(false) // Toggle for gasless upgrade
   const [showUpgradeNotice, setShowUpgradeNotice] = useState(false)
   const [delegationAddress, setDelegationAddress] = useState('0x63c0c114B521E88A1A20bb92017177663496e32b') // Default 7702 delegation address
   const [batchCallId, setBatchCallId] = useState<string>('') // Store batch transfer call ID
@@ -97,11 +99,14 @@ export function MetaMaskSmartAccount() {
    */
   const handleUpgrade = async () => {
     try {
-      console.log('🔐 Triggering EIP-7702 upgrade...')
-
-      const callId = await triggerDelegation()
-
-      console.log('✅ Upgrade completed! Call ID:', callId)
+      let callId;
+      if (enableGaslessUpgrade) {
+        console.log('🚀 Initiating Gasless Upgrade...')
+        callId = await gaslessUpgrade()
+      } else {
+        console.log('🔐 Initiating Standard Upgrade...')
+        callId = await triggerDelegation()
+      }
       setUpgradeCallId(callId)
 
       // 成功后进入转账步骤
@@ -399,7 +404,25 @@ export function MetaMaskSmartAccount() {
                     fontSize: '13px',
                     color: '#856404'
                   }}>
-                    💡 <strong>注意：</strong>此操作需要支付少量 Gas 费用（大约 0.0001-0.001 ETH）
+                    💡 <strong>注意：</strong>此操作需要支付少量 Gas 费用（大约 0.0001-0.001 ETH），除非启用 Gasless 模式。
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={enableGaslessUpgrade}
+                        onChange={(e) => setEnableGaslessUpgrade(e.target.checked)}
+                      />
+                      <span style={{ marginLeft: '8px', fontWeight: 'bold', color: '#2e7d32' }}>
+                        启用 Gasless 升级 (由 Relayer 代付 Gas)
+                      </span>
+                    </label>
+                    {enableGaslessUpgrade && (
+                      <small style={{ color: '#666', marginLeft: '24px' }}>
+                        Relayer 将为您提交交易并支付 Gas 费用。您只需签署授权消息。
+                      </small>
+                    )}
                   </div>
                 </div>
 
