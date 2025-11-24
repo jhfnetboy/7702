@@ -1,28 +1,17 @@
 import React, { useState } from 'react'
-import { MetaMaskConnect } from './components/MetaMaskConnect'
+import { Header } from './components/Header'
 import { EIP7702Demo } from './components/EIP7702Demo'
 import { MetaMaskSmartAccount } from './components/MetaMaskSmartAccount'
 import './App.css'
 
 export default function App() {
-  const [selectedTab, setSelectedTab] = useState<'dashboard' | 'demo' | 'metamask'>('metamask')
+  const [selectedTab, setSelectedTab] = useState<'demo' | 'metamask'>('demo')
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="header-content">
-          <h1>EIP-7702 Demo Application</h1>
-          <p>Gas-sponsored transactions using contract delegation</p>
-        </div>
-      </header>
+      <Header />
 
       <nav className="app-nav">
-        <button
-          className={`nav-button ${selectedTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setSelectedTab('dashboard')}
-        >
-          Dashboard
-        </button>
         <button
           className={`nav-button ${selectedTab === 'demo' ? 'active' : ''}`}
           onClick={() => setSelectedTab('demo')}
@@ -38,12 +27,6 @@ export default function App() {
       </nav>
 
       <main className="app-main">
-        {selectedTab === 'dashboard' && (
-          <div className="dashboard-content">
-            <MetaMaskConnect />
-          </div>
-        )}
-
         {selectedTab === 'demo' && (
           <div className="demo-content">
             <EIP7702Demo />
