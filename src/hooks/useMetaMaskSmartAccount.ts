@@ -33,7 +33,7 @@ import {
 } from 'viem'
 import { sepolia } from 'viem/chains'
 // @ts-ignore
-import { disableDelegation } from '@metamask/smart-accounts-kit'
+import { disableDelegation } from '@metamask/smart-accounts-kit/actions'
 
 // ✅ 使用 smart-accounts-kit（正确的包）
 import type {
