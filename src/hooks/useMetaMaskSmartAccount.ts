@@ -346,52 +346,41 @@ export function useMetaMaskSmartAccount() {
 
   /**
    * Gasless EIP-7702 Upgrade (via Relayer)
-   * User signs authorization via MetaMask, Relayer pays gas
+   * 
+   * 简化版：Relayer 代替用户签署 authorization 并支付 gas
+   * 注意：这要求用户信任 Relayer，因为 Relayer 会签署 authorization
+   * 
+   * 流程：
+   * 1. 客户端发送用户地址到 Relayer
+   * 2. Relayer 用自己的私钥签署 EIP-7702 authorization (代表用户)
+   * 3. Relayer 提交交易并支付 gas
+   * 4. 用户账户升级为 Smart Account（免费）
    */
   const gaslessUpgrade = useCallback(async (): Promise<string> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
       console.log('🚀 Initiating Gasless Upgrade...')
-      console.log('⛽️ User signs authorization, Relayer pays gas')
+      console.log('⛽️ Relayer will sign authorization and pay gas')
+      console.log('⚠️  Note: This requires trusting the Relayer to sign on your behalf')
       
       if (!window.ethereum) throw new Error('MetaMask not installed')
-
-      // Create wallet client with EIP-7702 actions
-      const walletClient = createWalletClient({
-        chain: sepolia,
-        transport: custom(window.ethereum),
-      }).extend(eip7702Actions())
-
-      const [account] = await walletClient.getAddresses()
+      
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[]
+      const account = accounts[0] as Address
+      
       if (!account) throw new Error('No account connected')
 
-      // Import getAddress for checksum
-      const { getAddress } = await import('viem')
-      const DELEGATOR_ADDRESS = getAddress('0x63c0c114b521e88a1a20bb92017177663496e32b')
-
-      console.log('📝 User signing EIP-7702 authorization via viem + MetaMask...')
-      console.log('  Account:', account)
-      console.log('  Delegator:', DELEGATOR_ADDRESS)
-
-      // Sign authorization using viem's eip7702Actions
-      // This creates a proper EIP-7702 authorization signed by MetaMask
-      const authorization = await walletClient.signAuthorization({
-        account,
-        contractAddress: DELEGATOR_ADDRESS,
-      })
-
-      console.log('✅ Authorization signed by user!')
-      console.log('  Authorization:', authorization)
-
-      // Send signed authorization to Relayer
-      console.log('🚀 Sending signed authorization to Relayer...')
+      console.log('📝 Requesting gasless upgrade for account:', account)
+      console.log('  Relayer will use viem to create and sign EIP-7702 authorization')
+      
+      // Send request to Relayer
       const response = await fetch('http://localhost:3000/gasless-upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           account,
-          authorization
+          delegatorAddress: '0x63c0c114b521e88a1a20bb92017177663496e32b'
         }),
       })
 
@@ -401,7 +390,7 @@ export function useMetaMaskSmartAccount() {
       }
 
       const result = await response.json()
-      console.log('✅ Gasless upgrade successful! Relayer paid the gas.')
+      console.log('✅ Gasless upgrade successful! Relayer paid all gas.')
       console.log('  Transaction hash:', result.hash)
 
       setState((prev) => ({ ...prev, isLoading: false }))

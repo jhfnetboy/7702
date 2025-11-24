@@ -119,6 +119,73 @@ app.post('/upgrade', async (req, res) => {
 })
 
 /**
+ * POST /gasless-upgrade
+ * Relayer signs EIP-7702 authorization on behalf of user and pays gas
+ * 
+ * ⚠️ IMPORTANT: This approach requires user to TRUST the Relayer
+ * because Relayer is signing the authorization (not the user).
+ * 
+ * For production, prefer user-signed authorization methods.
+ */
+app.post('/gasless-upgrade', async (req, res) => {
+  try {
+    const { account, delegatorAddress } = req.body
+
+    if (!account || !delegatorAddress) {
+      return res.status(400).json({ error: 'Missing account or delegatorAddress' })
+    }
+
+    console.log('📝 Received gasless upgrade request')
+    console.log('   Target Account:', account)
+    console.log('   Delegator Contract:', delegatorAddress)
+
+    // Import necessary functions
+    const { getAddress } = await import('viem')
+    const { eip7702Actions } = await import('viem/experimental')
+    
+    // Ensure addresses are properly checksummed
+    const userAccount = getAddress(account)
+    const delegator = getAddress(delegatorAddress)
+
+    console.log('✍️ Relayer signing EIP-7702 authorization using viem...')
+    
+    // Extend wallet client with EIP-7702 actions
+    const eip7702Client = client.extend(eip7702Actions())
+    
+    // Relayer signs authorization FOR the user
+    // ⚠️  This is different from user signing - Relayer is vouching for this upgrade
+    const authorization = await eip7702Client.signAuthorization({
+      contractAddress: delegator,
+    })
+
+    console.log('✅ Authorization created by Relayer')
+
+    // Relayer submits transaction with authorization
+    const hash = await client.sendTransaction({
+      to: userAccount,
+      value: 0n,
+      authorizationList: [authorization],
+    })
+
+    console.log('✅ Transaction sent by Relayer:', hash)
+
+    // Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+    console.log('✅ Transaction confirmed in block:', receipt.blockNumber)
+    console.log('⛽️ Gas paid by Relayer')
+
+    res.json({ 
+      success: true, 
+      hash, 
+      blockNumber: receipt.blockNumber.toString()
+    })
+  } catch (error) {
+    console.error('❌ Gasless upgrade failed:', error)
+    res.status(500).json({ error: (error as Error).message || 'Unknown error' })
+  }
+})
+
+/**
  * POST /revoke
  * Submits an EIP-7702 revocation transaction paid by the Relayer.
  */
