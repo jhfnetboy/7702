@@ -346,100 +346,52 @@ export function useMetaMaskSmartAccount() {
 
   /**
    * Gasless EIP-7702 Upgrade (via Relayer)
+   * User signs authorization via MetaMask, Relayer pays gas
    */
   const gaslessUpgrade = useCallback(async (): Promise<string> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
       console.log('🚀 Initiating Gasless Upgrade...')
-      console.log('⛽️ User will sign EIP-7702 authorization, Relayer will pay gas')
-      console.log('')
-      console.log('⚠️  IMPORTANT: Do NOT send any transactions from this account until upgrade completes!')
-      console.log('   (Sending transactions will change your nonce and invalidate the authorization)')
-      console.log('')
+      console.log('⛽️ User signs authorization, Relayer pays gas')
       
       if (!window.ethereum) throw new Error('MetaMask not installed')
-      
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[]
-      const account = accounts[0] as Address
-      
+
+      // Create wallet client with EIP-7702 actions
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(window.ethereum),
+      }).extend(eip7702Actions())
+
+      const [account] = await walletClient.getAddresses()
       if (!account) throw new Error('No account connected')
 
-      // Import getAddress for proper checksum
+      // Import getAddress for checksum
       const { getAddress } = await import('viem')
-
-      // MetaMask's Delegator Contract Address on Sepolia (with proper checksum)
       const DELEGATOR_ADDRESS = getAddress('0x63c0c114b521e88a1a20bb92017177663496e32b')
-      
-      // Get chain ID
-      const chainId = await window.ethereum.request({ method: 'eth_chainId' }) as string
-      const chainIdHex = chainId
-      
-      // Get nonce for this account
-      const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
-      })
-      
-      // CRITICAL: Get current nonce - this must match at execution time!
-      const currentNonce = await publicClient.getTransactionCount({ address: account })
-      
-      console.log('📝 Preparing EIP-7702 authorization signature...')
+
+      console.log('📝 User signing EIP-7702 authorization via viem + MetaMask...')
       console.log('  Account:', account)
       console.log('  Delegator:', DELEGATOR_ADDRESS)
-      console.log('  Chain ID:', chainIdHex)
-      console.log('  Current Nonce:', currentNonce)
-      console.log('')
-      console.log('  ⚠️  Authorization will be INVALID if nonce changes before Relayer submits!')
-      
-      console.log('✍️ Requesting EIP-7702 authorization signature via MetaMask...')
-      
-      // Use wallet_invokeMethod for EIP-7702 authorization
-      // This is the correct way to sign EIP-7702 authorizations
-      const authorizationResult = await window.ethereum.request({
-        method: 'wallet_invokeMethod',
-        params: [{
-          scope: chainIdHex,
-          request: {
-            method: 'wallet_signAuthorization',
-            params: [{
-              chainId: chainIdHex,
-              address: DELEGATOR_ADDRESS,
-              nonce: `0x${currentNonce.toString(16)}`,
-            }]
-          }
-        }]
-      }) as any
-      
-      console.log('✅ EIP-7702 Authorization signed!')
-      console.log('  Authorization:', authorizationResult)
-      
-      // Verify nonce hasn't changed before sending to Relayer
-      const verifyNonce = await publicClient.getTransactionCount({ address: account })
-      if (verifyNonce !== currentNonce) {
-        throw new Error(
-          `Nonce changed from ${currentNonce} to ${verifyNonce} after signing! ` +
-          `Authorization is now invalid. Please try again and don't send transactions during upgrade.`
-        )
-      }
-      
-      const authorization = {
-        chainId: parseInt(chainIdHex, 16),
-        address: DELEGATOR_ADDRESS,
-        nonce: Number(currentNonce),
-        ...authorizationResult
-      }
 
-      // 2. Send to Relayer
-      console.log('🚀 Sending authorization to Relayer Service...')
-      console.log('  Note: Relayer will verify nonce matches before submitting')
-      
-      const response = await fetch('http://localhost:3000/upgrade', {
+      // Sign authorization using viem's eip7702Actions
+      // This creates a proper EIP-7702 authorization signed by MetaMask
+      const authorization = await walletClient.signAuthorization({
+        account,
+        contractAddress: DELEGATOR_ADDRESS,
+      })
+
+      console.log('✅ Authorization signed by user!')
+      console.log('  Authorization:', authorization)
+
+      // Send signed authorization to Relayer
+      console.log('🚀 Sending signed authorization to Relayer...')
+      const response = await fetch('http://localhost:3000/gasless-upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          authorization,
-          account 
+          account,
+          authorization
         }),
       })
 
@@ -451,7 +403,6 @@ export function useMetaMaskSmartAccount() {
       const result = await response.json()
       console.log('✅ Gasless upgrade successful! Relayer paid the gas.')
       console.log('  Transaction hash:', result.hash)
-      console.log('  You can now send transactions from this account again.')
 
       setState((prev) => ({ ...prev, isLoading: false }))
       return result.hash
