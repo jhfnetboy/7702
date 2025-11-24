@@ -353,6 +353,10 @@ export function useMetaMaskSmartAccount() {
     try {
       console.log('🚀 Initiating Gasless Upgrade...')
       console.log('⛽️ User will sign authorization, Relayer will pay gas')
+      console.log('')
+      console.log('⚠️  IMPORTANT: Do NOT send any transactions from this account until upgrade completes!')
+      console.log('   (Sending transactions will change your nonce and invalidate the authorization)')
+      console.log('')
       
       if (!window.ethereum) throw new Error('MetaMask not installed')
       
@@ -377,13 +381,16 @@ export function useMetaMaskSmartAccount() {
         transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
       })
       
-      const nonce = await publicClient.getTransactionCount({ address: account })
+      // CRITICAL: Get current nonce - this must match at execution time!
+      const currentNonce = await publicClient.getTransactionCount({ address: account })
       
       console.log('📝 Preparing authorization signature...')
       console.log('  Account:', account)
       console.log('  Delegator:', DELEGATOR_ADDRESS)
       console.log('  Chain ID:', chainIdNumber)
-      console.log('  Nonce:', nonce)
+      console.log('  Current Nonce:', currentNonce)
+      console.log('')
+      console.log('  ⚠️  Authorization will be INVALID if nonce changes before Relayer submits!')
       
       // EIP-7702 Authorization typed data
       const typedData = {
@@ -396,7 +403,7 @@ export function useMetaMaskSmartAccount() {
           Authorization: [
             { name: 'chainId', type: 'uint256' },
             { name: 'address', type: 'address' },
-            { name: 'nonce', type: 'uint256' },
+            { name: 'nonce', type: 'uint64' },
           ],
         },
         primaryType: 'Authorization',
@@ -408,7 +415,7 @@ export function useMetaMaskSmartAccount() {
         message: {
           chainId: chainIdNumber,
           address: DELEGATOR_ADDRESS,
-          nonce: nonce,
+          nonce: currentNonce,
         },
       }
       
@@ -421,6 +428,16 @@ export function useMetaMaskSmartAccount() {
       }) as `0x${string}`
       
       console.log('✅ Authorization signed!')
+      console.log('  Signature nonce:', currentNonce)
+      
+      // Verify nonce hasn't changed before sending to Relayer
+      const verifyNonce = await publicClient.getTransactionCount({ address: account })
+      if (verifyNonce !== currentNonce) {
+        throw new Error(
+          `Nonce changed from ${currentNonce} to ${verifyNonce} after signing! ` +
+          `Authorization is now invalid. Please try again and don't send transactions during upgrade.`
+        )
+      }
       
       // Parse signature into r, s, v
       const r = `0x${signature.slice(2, 66)}` as `0x${string}`
@@ -430,7 +447,7 @@ export function useMetaMaskSmartAccount() {
       const authorization = {
         chainId: chainIdNumber,
         address: DELEGATOR_ADDRESS,
-        nonce: Number(nonce),
+        nonce: Number(currentNonce),
         r,
         s,
         v,
@@ -438,6 +455,8 @@ export function useMetaMaskSmartAccount() {
 
       // 2. Send to Relayer
       console.log('🚀 Sending authorization to Relayer Service...')
+      console.log('  Note: Relayer will verify nonce matches before submitting')
+      
       const response = await fetch('http://localhost:3000/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -455,6 +474,7 @@ export function useMetaMaskSmartAccount() {
       const result = await response.json()
       console.log('✅ Gasless upgrade successful! Relayer paid the gas.')
       console.log('  Transaction hash:', result.hash)
+      console.log('  You can now send transactions from this account again.')
 
       setState((prev) => ({ ...prev, isLoading: false }))
       return result.hash

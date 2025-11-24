@@ -59,7 +59,7 @@ app.post('/upgrade', async (req, res) => {
     console.log('📝 Received upgrade request')
     console.log('   User Account:', account)
     console.log('   Delegator Contract:', authorization.address)
-    console.log('   Authorization:', authorization)
+    console.log('   Authorization Nonce:', authorization.nonce)
 
     // Import getAddress for checksum validation
     const { getAddress } = await import('viem')
@@ -67,6 +67,23 @@ app.post('/upgrade', async (req, res) => {
     // Ensure addresses are properly checksummed
     const userAccount = getAddress(account)
     const delegatorAddress = getAddress(authorization.address)
+
+    // CRITICAL: Verify nonce matches current account nonce
+    const currentNonce = await publicClient.getTransactionCount({ address: userAccount })
+    console.log('   Current Account Nonce:', currentNonce)
+    
+    if (BigInt(authorization.nonce) !== currentNonce) {
+      console.error('❌ Nonce mismatch!')
+      console.error(`   Authorization nonce: ${authorization.nonce}`)
+      console.error(`   Current nonce: ${currentNonce}`)
+      return res.status(400).json({ 
+        error: 'Nonce mismatch: Authorization is stale. ' +
+               `Expected nonce ${currentNonce}, but authorization has nonce ${authorization.nonce}. ` +
+               'Please sign a new authorization with the current nonce.'
+      })
+    }
+    
+    console.log('✅ Nonce verification passed')
 
     // Construct the transaction
     // Send to user's account with authorization list
