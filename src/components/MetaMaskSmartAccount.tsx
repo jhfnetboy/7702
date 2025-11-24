@@ -1,12 +1,8 @@
 /**
- * MetaMask Smart Account Component (重构版)
- * 使用 ERC-7715 和 EIP-5792 标准
- *
- * 新的用户流程（简化）：
- * 1. 连接钱包 + 检查能力
- * 2. 请求权限（自动触发 EIP-7702 升级）
- * 3. 执行 Gasless 批量转账
+ * MetaMask Smart Account Component
+ * 使用 EIP-7702 和 EIP-5792 标准
  */
+
 
 import React, { useState } from 'react'
 import { parseEther, formatEther, type Address } from 'viem'
@@ -83,7 +79,7 @@ export function MetaMaskSmartAccount() {
         setShowUpgradeNotice(true)
         console.log(
           `ℹ️ EIP-5792 批量交易检测为不支持。\n` +
-          `MetaMask 版本: ${window.ethereum?.version || 'unknown'}\n` +
+          `MetaMask 版本: ${(window.ethereum as any)?.version || 'unknown'}\n` +
           `这可能是检测问题，或网络配置问题。\n` +
           `应用将使用兼容模式（逐笔确认）。`
         )
@@ -287,7 +283,7 @@ export function MetaMaskSmartAccount() {
                   </li>
                   <li>Paymaster: {capabilities.supportsPaymaster ? '✅ 支持' : '❌ 不支持'}</li>
                   <li>
-                    MetaMask 版本: {window.ethereum?.version || window.ethereum?._metamask?.version || 'unknown'}
+                     MetaMask 版本: {(window.ethereum as any)?.version || (window.ethereum as any)?._metamask?.version || 'unknown'}
                   </li>
                 </ul>
 
@@ -658,7 +654,122 @@ export function MetaMaskSmartAccount() {
             </button>
           </div>
         )}
+
+        {/* Delegation Checker Debug Section */}
+        {(step === 'transfer' || capabilities) && (
+          <div style={{
+            marginTop: '40px',
+            padding: '20px',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#495057' }}>
+              🔍 Delegation Status Checker
+            </h3>
+            <DelegationChecker account={account} />
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
+
+// Delegation Checker Component
+function DelegationChecker({ account }: { account: Address | null }) {
+  const [checkResult, setCheckResult] = useState<string>('')
+  const [isChecking, setIsChecking] = useState(false)
+
+  const checkDelegation = async () => {
+    if (!account) {
+      setCheckResult('❌ No account connected')
+      return
+    }
+
+    setIsChecking(true)
+    setCheckResult('🔍 Checking delegation...')
+
+    try {
+      const { createPublicClient, http } = await import('viem')
+      const { sepolia } = await import('viem/chains')
+
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'),
+      })
+
+      const bytecode = await publicClient.getBytecode({ 
+        address: account,
+        blockTag: 'latest'
+      })
+
+      let result = `📝 Raw bytecode: ${bytecode}\n`
+      result += `📏 Length: ${bytecode?.length || 0}\n\n`
+
+      if (!bytecode || bytecode === '0x') {
+        result += '❌ No bytecode - Regular EOA'
+      } else if (bytecode.startsWith('0xef01')) {
+        result += '✅ EIP-7702 delegation detected!\n\n'
+        
+        if (bytecode.length >= 48) {
+          const delegationAddr = `0x${bytecode.slice(8, 48)}`
+          result += `🎯 Delegation address: ${delegationAddr}\n`
+          
+          const isZero = delegationAddr === '0x0000000000000000000000000000000000000000'
+          result += `🔍 Is zero address? ${isZero}\n\n`
+          
+          if (!isZero) {
+            result += `✅ Account IS delegated to: ${delegationAddr}`
+          } else {
+            result += `⚠️ Account delegation is REVOKED (zero address)`
+          }
+        }
+      } else {
+        result += '❌ Not an EIP-7702 delegated account'
+      }
+
+      setCheckResult(result)
+    } catch (error) {
+      setCheckResult(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsChecking(false)
+    }
+  }
+
+  return (
+    <div>
+      <button 
+        onClick={checkDelegation}
+        disabled={isChecking || !account}
+        style={{
+          padding: '8px 16px',
+          background: '#4a90e2',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: account ? 'pointer' : 'not-allowed',
+          fontSize: '14px',
+          opacity: account ? 1 : 0.5
+        }}
+      >
+        {isChecking ? '⏳ Checking...' : '🔍 Check Current Status'}
+      </button>
+
+      {checkResult && (
+        <div style={{
+          marginTop: '16px',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '4px',
+          border: '1px solid #dee2e6',
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          whiteSpace: 'pre-wrap',
+          color: '#212529'
+        }}>
+          {checkResult}
+        </div>
+      )}
     </div>
   )
 }
