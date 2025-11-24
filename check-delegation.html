@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Check Delegation</title>
+  <script type="module">
+    import { createPublicClient, http } from 'https://esm.sh/viem@2.21.54'
+    import { sepolia } from 'https://esm.sh/viem@2.21.54/chains'
+
+    const RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
+    const ADDRESS = '0xb5600060e6de5E11D3636731964218E53caadf0E'
+
+    const publicClient = createPublicClient({
+      chain: sepolia,
+      transport: http(RPC_URL),
+    })
+
+    async function checkDelegation() {
+      const output = document.getElementById('output')
+      output.innerHTML = '🔍 Checking delegation...<br><br>'
+      
+      try {
+        const bytecode = await publicClient.getBytecode({ 
+          address: ADDRESS,
+          blockTag: 'latest'
+        })
+        
+        output.innerHTML += `📝 Raw bytecode: ${bytecode}<br>`
+        output.innerHTML += `📏 Length: ${bytecode?.length || 0}<br><br>`
+        
+        if (!bytecode || bytecode === '0x') {
+          output.innerHTML += '❌ No bytecode - Regular EOA<br>'
+          return
+        }
+        
+        if (bytecode.startsWith('0xef01')) {
+          output.innerHTML += '✅ EIP-7702 delegation detected!<br><br>'
+          
+          if (bytecode.length >= 48) {
+            const delegationAddr = `0x${bytecode.slice(8, 48)}`
+            output.innerHTML += `🎯 Delegation address: ${delegationAddr}<br>`
+            
+            const isZero = delegationAddr === '0x0000000000000000000000000000000000000000'
+            output.innerHTML += `🔍 Is zero address? ${isZero}<br><br>`
+            
+            if (!isZero) {
+              output.innerHTML += `<strong style="color: green;">✅ Account IS delegated to: ${delegationAddr}</strong><br>`
+            } else {
+              output.innerHTML += `<strong style="color: orange;">⚠️ Account delegation is REVOKED (zero address)</strong><br>`
+            }
+          }
+        } else {
+          output.innerHTML += '❌ Not an EIP-7702 delegated account<br>'
+        }
+      } catch (error) {
+        output.innerHTML += `<span style="color: red;">❌ Error: ${error.message}</span><br>`
+      }
+    }
+
+    window.addEventListener('load', checkDelegation)
+  </script>
+</head>
+<body>
+  <h1>Check Delegation Status</h1>
+  <p>Address: <code>0xb5600060e6de5E11D3636731964218E53caadf0E</code></p>
+  <div id="output" style="font-family: monospace; white-space: pre-wrap;"></div>
+</body>
+</html>

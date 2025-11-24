@@ -23,7 +23,6 @@ export function MetaMaskSmartAccount() {
     checkCapabilities,
     triggerDelegation,
     gaslessUpgrade,
-    gaslessRevoke,
     revokeDelegation,
     requestPermissions,
     batchTransfer,
@@ -130,33 +129,18 @@ export function MetaMaskSmartAccount() {
   }
 
   /**
-   * 撤销授权 - Gasless
+   * 撤销授权 - 引导用户手动操作
+   * MetaMask 不支持简单的编程撤销，需要在设置中手动禁用
    */
-  const handleRevoke = async () => {
-    try {
-      console.log('🚫 Revoking delegation...')
-      const hash = await gaslessRevoke()
-      console.log('✅ Revocation successful, hash:', hash)
-      
-      // 保存交易哈希
-      setRevokeHash(hash)
-      
-      // 等待 2 秒确保交易完全生效
-      console.log('⏳ Waiting for state to update...')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // 强制刷新账户状态
-      console.log('🔄 Refreshing account state...')
-      await checkCapabilities()
-      
-      // 撤销成功后返回连接步骤
-      setStep('connect')
-      setCapabilities(null)
-      showToast('success', '撤销成功', '授权已撤销，账户已恢复为 EOA')
-    } catch (err) {
-      console.error('❌ Revocation failed:', err)
-      showToast('error', '撤销失败', (err as Error).message)
-    }
+  const handleRevoke = () => {
+    showToast('info', '如何撤销授权', 
+      '请在 MetaMask 中手动禁用：\n\n' +
+      '1. 点击 MetaMask 账户旁的三个点 (⋮)\n' +
+      '2. 选择 "账户详情"\n' +
+      '3. 找到 "启用智能合约账户"\n' +
+      '4. 关闭开关并确认交易\n\n' +
+      '完成后刷新页面即可看到更新'
+    )
   }
 
   /**
@@ -634,7 +618,7 @@ export function MetaMaskSmartAccount() {
                   fontSize: '12px'
                 }}
               >
-                🚫 撤销授权 (Gasless)
+                ℹ️ 如何撤销授权
               </button>
             </div>
 
