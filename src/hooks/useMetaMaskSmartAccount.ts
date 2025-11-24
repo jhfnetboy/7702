@@ -352,16 +352,109 @@ export function useMetaMaskSmartAccount() {
 
     try {
       console.log('🚀 Initiating Gasless Upgrade...')
-      console.log('⛽️ Starting Gasless Upgrade...')
+      console.log('⛽️ User will sign authorization, Relayer will pay gas')
       
-      // For gasless upgrade, we trigger MetaMask's native EIP-7702 upgrade
-      // then let the Relayer handle the actual transaction
-      const result = await triggerDelegation()
+      if (!window.ethereum) throw new Error('MetaMask not installed')
       
-      console.log('✅ Gasless upgrade completed via MetaMask!')
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[]
+      const account = accounts[0] as Address
       
+      if (!account) throw new Error('No account connected')
+
+      // MetaMask's Delegator Contract Address on Sepolia
+      const DELEGATOR_ADDRESS = '0x63c0c114B521E88A1A20bb92017177663496e32b'
+      
+      // Get chain ID
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' }) as string
+      const chainIdNumber = parseInt(chainId, 16)
+      
+      // Get nonce for this account
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL),
+      })
+      
+      const nonce = await publicClient.getTransactionCount({ address: account })
+      
+      console.log('📝 Preparing authorization signature...')
+      console.log('  Account:', account)
+      console.log('  Delegator:', DELEGATOR_ADDRESS)
+      console.log('  Chain ID:', chainIdNumber)
+      console.log('  Nonce:', nonce)
+      
+      // EIP-7702 Authorization typed data
+      const typedData = {
+        types: {
+          EIP712Domain: [
+            { name: 'name', type: 'string' },
+            { name: 'version', type: 'string' },
+            { name: 'chainId', type: 'uint256' },
+          ],
+          Authorization: [
+            { name: 'chainId', type: 'uint256' },
+            { name: 'address', type: 'address' },
+            { name: 'nonce', type: 'uint256' },
+          ],
+        },
+        primaryType: 'Authorization',
+        domain: {
+          name: 'EIP-7702',
+          version: '1',
+          chainId: chainIdNumber,
+        },
+        message: {
+          chainId: chainIdNumber,
+          address: DELEGATOR_ADDRESS,
+          nonce: nonce,
+        },
+      }
+      
+      console.log('✍️ Requesting user signature via MetaMask...')
+      
+      // Request signature from MetaMask
+      const signature = await window.ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [account, JSON.stringify(typedData)],
+      }) as `0x${string}`
+      
+      console.log('✅ Authorization signed!')
+      
+      // Parse signature into r, s, v
+      const r = `0x${signature.slice(2, 66)}` as `0x${string}`
+      const s = `0x${signature.slice(66, 130)}` as `0x${string}`
+      const v = parseInt(signature.slice(130, 132), 16)
+      
+      const authorization = {
+        chainId: chainIdNumber,
+        address: DELEGATOR_ADDRESS,
+        nonce: Number(nonce),
+        r,
+        s,
+        v,
+      }
+
+      // 2. Send to Relayer
+      console.log('🚀 Sending authorization to Relayer Service...')
+      const response = await fetch('http://localhost:3000/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          authorization,
+          account 
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Relayer request failed')
+      }
+
+      const result = await response.json()
+      console.log('✅ Gasless upgrade successful! Relayer paid the gas.')
+      console.log('  Transaction hash:', result.hash)
+
       setState((prev) => ({ ...prev, isLoading: false }))
-      return result
+      return result.hash
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Gasless upgrade failed'
       console.error('❌ Gasless upgrade failed:', error)
@@ -372,7 +465,7 @@ export function useMetaMaskSmartAccount() {
       }))
       throw error
     }
-  }, [triggerDelegation])
+  }, [])
 
   /**
    * 撤销授权 (EIP-7702)
