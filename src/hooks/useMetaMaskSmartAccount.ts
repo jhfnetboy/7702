@@ -29,7 +29,7 @@ import {
   type Address,
   type Hash,
   type WalletClient,
-  type PublicClient,
+  type Hex,
 } from 'viem'
 import { sepolia } from 'viem/chains'
 
@@ -732,6 +732,7 @@ export function useMetaMaskSmartAccount() {
     checkCapabilities,
     triggerDelegation, // ✨ 新增：EIP-7702 delegation (User pays)
     gaslessUpgrade, // ✨ 新增：Gasless Upgrade (Relayer pays)
+    programmaticRevoke, // ✨ 新增：Programmatic Revoke (User pays)
     revokeDelegation, // ✨ 新增：撤销授权（手动在 MetaMask 设置中操作）
     requestPermissions,
     batchTransfer,

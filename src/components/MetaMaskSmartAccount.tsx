@@ -23,6 +23,7 @@ export function MetaMaskSmartAccount() {
     checkCapabilities,
     triggerDelegation,
     gaslessUpgrade,
+    programmaticRevoke,
     revokeDelegation,
     requestPermissions,
     batchTransfer,
@@ -618,7 +619,40 @@ export function MetaMaskSmartAccount() {
                   fontSize: '12px'
                 }}
               >
-                ℹ️ 如何撤销授权
+                ℹ️ 手动撤销 (设置)
+              </button>
+              
+              <button 
+                onClick={async () => {
+                  try {
+                    const hash = await programmaticRevoke()
+                    setRevokeHash(hash)
+                    showToast('success', '撤销交易已提交', '请等待交易确认')
+                    
+                    // 等待 2 秒确保交易完全生效
+                    await new Promise(resolve => setTimeout(resolve, 2000))
+                    await checkCapabilities()
+                    
+                    setStep('connect')
+                    setCapabilities(null)
+                  } catch (err) {
+                    showToast('error', '撤销失败', (err as Error).message)
+                  }
+                }} 
+                disabled={isLoading}
+                className="danger-button"
+                style={{ 
+                  background: '#fff', 
+                  color: '#d93025', 
+                  border: '1px solid #d93025',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '12px'
+                }}
+              >
+                🚫 编程撤销 (Gas)
               </button>
             </div>
 
