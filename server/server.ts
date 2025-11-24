@@ -50,28 +50,42 @@ app.get('/', (req, res) => {
  */
 app.post('/upgrade', async (req, res) => {
   try {
-    const { authorization } = req.body
+    const { authorization, account } = req.body
 
-    if (!authorization) {
-      return res.status(400).json({ error: 'Missing authorization data' })
+    if (!authorization || !account) {
+      return res.status(400).json({ error: 'Missing authorization or account data' })
     }
 
-    console.log('📝 Received upgrade request for:', authorization.contractAddress)
+    console.log('📝 Received upgrade request')
+    console.log('   User Account:', account)
+    console.log('   Delegator Contract:', authorization.address)
     console.log('   Authorization:', authorization)
 
+    // Import getAddress for checksum validation
+    const { getAddress } = await import('viem')
+    
+    // Ensure addresses are properly checksummed
+    const userAccount = getAddress(account)
+    const delegatorAddress = getAddress(authorization.address)
+
     // Construct the transaction
-    // The Relayer sends a transaction to the user's account (or any address)
-    // including the authorization list.
-    // To be safe and standard, we can send 0 ETH to the user's account.
+    // Send to user's account with authorization list
     const hash = await client.sendTransaction({
-      to: authorization.contractAddress, // Send to the user's account (which is being upgraded)
+      to: userAccount, // Send to the USER's account being upgraded
       value: 0n,
-      authorizationList: [authorization],
+      authorizationList: [{
+        chainId: authorization.chainId,
+        address: delegatorAddress,
+        nonce: BigInt(authorization.nonce),
+        r: authorization.r,
+        s: authorization.s,
+        v: authorization.v
+      }],
     })
 
     console.log('✅ Transaction sent:', hash)
 
-    // Wait for receipt (optional, but good for immediate feedback)
+    // Wait for receipt
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
     console.log('✅ Transaction confirmed in block:', receipt.blockNumber)
 
