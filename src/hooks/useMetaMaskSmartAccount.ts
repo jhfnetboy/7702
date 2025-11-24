@@ -361,8 +361,11 @@ export function useMetaMaskSmartAccount() {
       
       if (!account) throw new Error('No account connected')
 
-      // MetaMask's Delegator Contract Address on Sepolia
-      const DELEGATOR_ADDRESS = '0x63c0c114B521E88A1A20bb92017177663496e32b'
+      // Import getAddress for proper checksum
+      const { getAddress } = await import('viem')
+
+      // MetaMask's Delegator Contract Address on Sepolia (with proper checksum)
+      const DELEGATOR_ADDRESS = getAddress('0x63c0c114b521e88a1a20bb92017177663496e32b')
       
       // Get chain ID
       const chainId = await window.ethereum.request({ method: 'eth_chainId' }) as string
