@@ -4,3 +4,6 @@
 [submodule "lib/delegation-framework"]
 	path = lib/delegation-framework
 	url = git@github.com:MetaMask/delegation-framework.git
+[submodule "delegation-framework"]
+	path = delegation-framework
+	url = https://github.com/MetaMask/delegation-framework.git

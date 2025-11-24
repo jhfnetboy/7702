@@ -180,3 +180,26 @@ pnpm exec playwright show-report
 ## License
 
 MIT
+
+## ⚠️ 技术说明：EIP-7702 撤销授权
+
+关于 **编程方式撤销授权 (Programmatic Revoke)** 的调研结论：
+
+### 1. 现状
+目前 `@metamask/smart-accounts-kit` (v0.1.0) **不支持** 通过 SDK 函数直接撤销 EIP-7702 授权（即账户降级回 EOA）。
+
+### 2. 分析
+- **SDK 限制**: 虽然 `delegation-framework` 合约中存在 `disableDelegation` 函数，但它用于管理链下权限 (Offchain Delegations)，而非 EIP-7702 账户本身的升级/降级。
+- **底层机制**: 真正的 EIP-7702 撤销需要发送一笔 `authorizationList` 指向零地址 (`0x00...00`) 的交易。目前 SDK 未封装此逻辑。
+- **签名问题**: 尝试手动构建 EIP-7702 签名时，会遇到与 MetaMask `personal_sign` / `eth_signTypedData` 的兼容性问题。
+
+### 3. 解决方案
+本项目目前采用 **手动撤销** 方案，这是官方推荐且最稳定的路径：
+1. 用户在 MetaMask 插件中打开账户详情
+2. 点击 "智能账户" 设置
+3. 手动关闭/撤销授权
+
+### 4. 参考资源
+- [MetaMask Smart Accounts Kit 文档](https://docs.metamask.io/smart-accounts-kit/)
+- [Delegation Framework 仓库](https://github.com/MetaMask/delegation-framework)
+- [EIP-7702 标准](https://eips.ethereum.org/EIPS/eip-7702)
