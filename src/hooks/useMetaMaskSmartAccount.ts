@@ -401,6 +401,38 @@ export function useMetaMaskSmartAccount() {
   }, [createExtendedClient])
 
   /**
+   * Programmatic Revoke
+   * 使用 MetaMask Smart Accounts Kit 的 disableDelegation
+   */
+  const programmaticRevoke = useCallback(async (): Promise<string> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      console.log('🚫 Starting Programmatic Revoke...')
+      const client = createExtendedClient()
+      
+      // 使用 disableDelegation 工具函数
+      // 注意：这会触发一个交易，用户需要支付 gas
+      console.log('🔧 Calling disableDelegation...')
+      const hash = await disableDelegation({ client })
+      
+      console.log('✅ Programmatic revoke successful!', hash)
+      
+      setState((prev) => ({ ...prev, isDelegated: false, delegationAddress: null, isLoading: false }))
+      return hash
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Programmatic revoke failed'
+      console.error('❌ Programmatic revoke failed:', error)
+      setState((prev) => ({
+        ...prev,
+        error: errorMsg,
+        isLoading: false,
+      }))
+      throw error
+    }
+  }, [createExtendedClient])
+
+  /**
    * 撤销授权 (EIP-7702)
    * 将账户委托给 0x0000...0000
    */
