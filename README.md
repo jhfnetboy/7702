@@ -197,9 +197,12 @@ MIT
 本项目目前采用 **手动撤销** 方案，这是官方推荐且最稳定的路径：
 1. 用户在 MetaMask 插件中打开账户详情
 2. 点击 "智能账户" 设置
-3. 手动关闭/撤销授权
+3. 手动关闭/撤销授权（可以设置不同链的不同状态）
+### 其他方式
+其他方式：导出私钥，自行构建7702签名，然后执行交易，替换delegation为0x0000000000000000000000000000000000000000（非技术或者必要不推荐）
 
 ### 4. 参考资源
 - [MetaMask Smart Accounts Kit 文档](https://docs.metamask.io/smart-accounts-kit/)
 - [Delegation Framework 仓库](https://github.com/MetaMask/delegation-framework)
 - [EIP-7702 标准](https://eips.ethereum.org/EIPS/eip-7702)
+- [AAStar社区](https://x.com/AAStarCommunity/status/1992829949716447608)
