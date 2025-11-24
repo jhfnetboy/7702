@@ -351,43 +351,17 @@ export function useMetaMaskSmartAccount() {
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
+      console.log('🚀 Initiating Gasless Upgrade...')
       console.log('⛽️ Starting Gasless Upgrade...')
-      const client = createExtendedClient()
-      const [account] = await client.getAddresses()
       
-      if (!account) throw new Error('No account connected')
-
-      // 1. Sign Authorization
-      console.log('✍️ Signing authorization for upgrade...')
-      // MetaMask's Delegator Contract Address on Sepolia
-      const DELEGATOR_ADDRESS = '0x63c0c114B521E88A1A20bb92017177663496e32b'
+      // For gasless upgrade, we trigger MetaMask's native EIP-7702 upgrade
+      // then let the Relayer handle the actual transaction
+      const result = await triggerDelegation()
       
-      const authorization = await client.signAuthorization({
-        account,
-        contractAddress: DELEGATOR_ADDRESS as Address,
-        delegate: true
-      } as any)
-
-      console.log('✅ Authorization signed:', authorization)
-
-      // 2. Send to Relayer
-      console.log('🚀 Sending to Relayer Service...')
-      const response = await fetch('http://localhost:3000/upgrade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authorization }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Relayer request failed')
-      }
-
-      const result = await response.json()
-      console.log('✅ Gasless upgrade successful!', result)
-
+      console.log('✅ Gasless upgrade completed via MetaMask!')
+      
       setState((prev) => ({ ...prev, isLoading: false }))
-      return result.hash
+      return result
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Gasless upgrade failed'
       console.error('❌ Gasless upgrade failed:', error)
@@ -398,7 +372,7 @@ export function useMetaMaskSmartAccount() {
       }))
       throw error
     }
-  }, [createExtendedClient])
+  }, [triggerDelegation])
 
   /**
    * 撤销授权 (EIP-7702)
