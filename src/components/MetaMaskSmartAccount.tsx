@@ -705,21 +705,29 @@ function DelegationChecker({ account }: { account: Address | null }) {
       const { createPublicClient, http } = await import('viem')
       const { sepolia } = await import('viem/chains')
 
+      const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
       const publicClient = createPublicClient({
         chain: sepolia,
-        transport: http(import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'),
+        transport: http(rpcUrl),
       })
+
+      let result = `📍 Checking address: ${account}\n`
+      result += `🌐 RPC: ${rpcUrl.slice(0, 40)}...\n\n`
 
       const bytecode = await publicClient.getBytecode({ 
         address: account,
         blockTag: 'latest'
       })
 
-      let result = `📝 Raw bytecode: ${bytecode}\n`
+      result += `📝 Raw bytecode: ${bytecode || 'undefined'}\n`
       result += `📏 Length: ${bytecode?.length || 0}\n\n`
 
       if (!bytecode || bytecode === '0x') {
-        result += '❌ No bytecode - Regular EOA'
+        result += '❌ No bytecode - Regular EOA\n\n'
+        result += '💡 This means:\n'
+        result += '  • Account is a normal External Owned Account (EOA)\n'
+        result += '  • Has NOT been upgraded via EIP-7702\n'
+        result += '  • No delegation is active'
       } else if (bytecode.startsWith('0xef01')) {
         result += '✅ EIP-7702 delegation detected!\n\n'
         
@@ -737,12 +745,23 @@ function DelegationChecker({ account }: { account: Address | null }) {
           }
         }
       } else {
-        result += '❌ Not an EIP-7702 delegated account'
+        result += '❌ Not an EIP-7702 delegated account\n'
+        result += `️ Unexpected bytecode prefix: ${bytecode.slice(0, 10)}`
       }
 
       setCheckResult(result)
     } catch (error) {
-      setCheckResult(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      setCheckResult(
+        `❌ Error checking delegation:\n\n` +
+        `Address: ${account}\n` +
+        `Error: ${errorMsg}\n\n` +
+        `💡 Possible causes:\n` +
+        `  • RPC endpoint issue\n` +
+        `  • Network connectivity problem\n` +
+        `  • Invalid address format`
+      )
+      console.error('Delegation check error:', error)
     } finally {
       setIsChecking(false)
     }
@@ -750,6 +769,18 @@ function DelegationChecker({ account }: { account: Address | null }) {
 
   return (
     <div>
+      <div style={{ marginBottom: '12px', fontSize: '13px', color: '#666' }}>
+        {account ? (
+          <div>
+            <strong>Target Address:</strong> <code style={{ fontSize: '11px', background: '#f1f3f5', padding: '2px 4px', borderRadius: '3px' }}>
+              {account.slice(0, 10)}...{account.slice(-8)}
+            </code>
+          </div>
+        ) : (
+          <div style={{ color: '#d32f2f' }}>⚠️ No wallet connected</div>
+        )}
+      </div>
+
       <button 
         onClick={checkDelegation}
         disabled={isChecking || !account}
@@ -777,7 +808,8 @@ function DelegationChecker({ account }: { account: Address | null }) {
           fontFamily: 'monospace',
           fontSize: '12px',
           whiteSpace: 'pre-wrap',
-          color: '#212529'
+          color: '#212529',
+          lineHeight: '1.6'
         }}>
           {checkResult}
         </div>
