@@ -69,19 +69,21 @@ app.post('/upgrade', async (req, res) => {
     const delegatorAddress = getAddress(authorization.address)
 
     // CRITICAL: Verify nonce matches current account nonce
+    // Convert both to Number to avoid BigInt comparison issues
     const currentNonce = await publicClient.getTransactionCount({ address: userAccount })
-    const authNonce = BigInt(authorization.nonce)
+    const currentNonceNum = Number(currentNonce)
+    const authNonceNum = Number(authorization.nonce)
     
-    console.log('   Current Account Nonce:', currentNonce, typeof currentNonce)
-    console.log('   Authorization Nonce:', authNonce, typeof authNonce)
+    console.log('   Current Account Nonce:', currentNonceNum, '(original:', currentNonce, typeof currentNonce, ')')
+    console.log('   Authorization Nonce:', authNonceNum, '(original:', authorization.nonce, typeof authorization.nonce, ')')
     
-    if (authNonce !== currentNonce) {
+    if (authNonceNum !== currentNonceNum) {
       console.error('❌ Nonce mismatch!')
-      console.error(`   Authorization nonce: ${authNonce}`)
-      console.error(`   Current nonce: ${currentNonce}`)
+      console.error(`   Authorization nonce: ${authNonceNum}`)
+      console.error(`   Current nonce: ${currentNonceNum}`)
       return res.status(400).json({ 
         error: 'Nonce mismatch: Authorization is stale. ' +
-               `Expected nonce ${currentNonce}, but authorization has nonce ${authNonce}. ` +
+               `Expected nonce ${currentNonceNum}, but authorization has nonce ${authNonceNum}. ` +
                'Please sign a new authorization with the current nonce.'
       })
     }
