@@ -7,6 +7,7 @@
 import React, { useState } from 'react'
 import { parseEther, formatEther, type Address } from 'viem'
 import { useMetaMaskSmartAccount } from '../hooks/useMetaMaskSmartAccount'
+import { ServiceInfo } from './ServiceInfo'
 import './MetaMaskSmartAccount.css'
 
 export function MetaMaskSmartAccount() {
@@ -44,6 +45,10 @@ export function MetaMaskSmartAccount() {
   const [batchCallId, setBatchCallId] = useState<string>('')
   const [revokeHash, setRevokeHash] = useState<string>('')
   const [toasts, setToasts] = useState<Array<{id: string, type: 'success'|'error'|'warning'|'info', title: string, message: string}>>([])
+  
+  // Service addresses
+  const relayAddress = import.meta.env.VITE_RELAY || import.meta.env.VITE_AUTHORIZER
+  const paymasterAddress = import.meta.env.VITE_PAYMASTER_ADDRESS || ''
 
   // Toast notification function
   const showToast = (type: 'success'|'error'|'warning'|'info', title: string, message: string) => {
@@ -468,9 +473,16 @@ export function MetaMaskSmartAccount() {
                       您的账户现在是 Smart Account，可以使用批量交易等高级功能！
                     </p>
                   </div>
-                )}
+                 )}
 
-                <div className="button-group">
+                 {/* Service Status Display */}
+                 <ServiceInfo 
+                   relayAddress={relayAddress}
+                   paymasterAddress={paymasterAddress}
+                   showPaymaster={enablePaymaster}
+                 />
+
+                 <div className="button-group">
                   <button
                     onClick={handleUpgrade}
                     disabled={isLoading}
