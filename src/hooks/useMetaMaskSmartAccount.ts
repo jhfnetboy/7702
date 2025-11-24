@@ -352,7 +352,7 @@ export function useMetaMaskSmartAccount() {
 
     try {
       console.log('🚀 Initiating Gasless Upgrade...')
-      console.log('⛽️ User will sign authorization, Relayer will pay gas')
+      console.log('⛽️ User will sign EIP-7702 authorization, Relayer will pay gas')
       console.log('')
       console.log('⚠️  IMPORTANT: Do NOT send any transactions from this account until upgrade completes!')
       console.log('   (Sending transactions will change your nonce and invalidate the authorization)')
@@ -373,7 +373,7 @@ export function useMetaMaskSmartAccount() {
       
       // Get chain ID
       const chainId = await window.ethereum.request({ method: 'eth_chainId' }) as string
-      const chainIdNumber = parseInt(chainId, 16)
+      const chainIdHex = chainId
       
       // Get nonce for this account
       const publicClient = createPublicClient({
@@ -384,51 +384,35 @@ export function useMetaMaskSmartAccount() {
       // CRITICAL: Get current nonce - this must match at execution time!
       const currentNonce = await publicClient.getTransactionCount({ address: account })
       
-      console.log('📝 Preparing authorization signature...')
+      console.log('📝 Preparing EIP-7702 authorization signature...')
       console.log('  Account:', account)
       console.log('  Delegator:', DELEGATOR_ADDRESS)
-      console.log('  Chain ID:', chainIdNumber)
+      console.log('  Chain ID:', chainIdHex)
       console.log('  Current Nonce:', currentNonce)
       console.log('')
       console.log('  ⚠️  Authorization will be INVALID if nonce changes before Relayer submits!')
       
-      // EIP-7702 Authorization typed data
-      const typedData = {
-        types: {
-          EIP712Domain: [
-            { name: 'name', type: 'string' },
-            { name: 'version', type: 'string' },
-            { name: 'chainId', type: 'uint256' },
-          ],
-          Authorization: [
-            { name: 'chainId', type: 'uint256' },
-            { name: 'address', type: 'address' },
-            { name: 'nonce', type: 'uint64' },
-          ],
-        },
-        primaryType: 'Authorization',
-        domain: {
-          name: 'EIP-7702',
-          version: '1',
-          chainId: chainIdNumber,
-        },
-        message: {
-          chainId: chainIdNumber,
-          address: DELEGATOR_ADDRESS,
-          nonce: currentNonce,
-        },
-      }
+      console.log('✍️ Requesting EIP-7702 authorization signature via MetaMask...')
       
-      console.log('✍️ Requesting user signature via MetaMask...')
+      // Use wallet_invokeMethod for EIP-7702 authorization
+      // This is the correct way to sign EIP-7702 authorizations
+      const authorizationResult = await window.ethereum.request({
+        method: 'wallet_invokeMethod',
+        params: [{
+          scope: chainIdHex,
+          request: {
+            method: 'wallet_signAuthorization',
+            params: [{
+              chainId: chainIdHex,
+              address: DELEGATOR_ADDRESS,
+              nonce: `0x${currentNonce.toString(16)}`,
+            }]
+          }
+        }]
+      }) as any
       
-      // Request signature from MetaMask
-      const signature = await window.ethereum.request({
-        method: 'eth_signTypedData_v4',
-        params: [account, JSON.stringify(typedData)],
-      }) as `0x${string}`
-      
-      console.log('✅ Authorization signed!')
-      console.log('  Signature nonce:', currentNonce)
+      console.log('✅ EIP-7702 Authorization signed!')
+      console.log('  Authorization:', authorizationResult)
       
       // Verify nonce hasn't changed before sending to Relayer
       const verifyNonce = await publicClient.getTransactionCount({ address: account })
@@ -439,18 +423,11 @@ export function useMetaMaskSmartAccount() {
         )
       }
       
-      // Parse signature into r, s, v
-      const r = `0x${signature.slice(2, 66)}` as `0x${string}`
-      const s = `0x${signature.slice(66, 130)}` as `0x${string}`
-      const v = parseInt(signature.slice(130, 132), 16)
-      
       const authorization = {
-        chainId: chainIdNumber,
+        chainId: parseInt(chainIdHex, 16),
         address: DELEGATOR_ADDRESS,
         nonce: Number(currentNonce),
-        r,
-        s,
-        v,
+        ...authorizationResult
       }
 
       // 2. Send to Relayer
