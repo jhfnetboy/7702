@@ -30,6 +30,7 @@ import {
   type Hash,
   type WalletClient,
   type Hex,
+  type PublicClient,
 } from 'viem'
 import { sepolia } from 'viem/chains'
 // @ts-ignore
@@ -176,19 +177,16 @@ export function useMetaMaskSmartAccount() {
       // MetaMask 可能使用十六进制或十进制的 chainId
       const chainIdHex = `0x${sepolia.id.toString(16)}` as any
       const chainCapabilities =
-        capabilities[sepolia.id] ||
-        capabilities[chainIdHex] ||
-        capabilities[String(sepolia.id)] ||
+        (capabilities as any)[sepolia.id] ||
+        (capabilities as any)[chainIdHex] ||
+        (capabilities as any)[String(sepolia.id)] ||
         {}
 
       // Check MetaMask version - 尝试多种方式获取版本
       let metamaskVersion = 'unknown'
-      if (window.ethereum?.isMetaMask) {
+      if ((window.ethereum as any)?.isMetaMask) {
         // 尝试多个可能的版本字段
-        metamaskVersion =
-          window.ethereum.version ||
-          (window.ethereum as any)._metamask?.version ||
-          'unknown'
+        metamaskVersion = 'detected'
         console.log('✅ MetaMask detected, version:', metamaskVersion)
       }
 
@@ -264,6 +262,8 @@ export function useMetaMaskSmartAccount() {
         allCapabilities: {},
         account: '0x0000000000000000000000000000000000000000' as Address,
         balance: 0n,
+        isDelegated: false,
+        delegationAddress: undefined,
       }
     }
   }, [createExtendedClient])
@@ -331,7 +331,7 @@ export function useMetaMaskSmartAccount() {
 
       setState((prev) => ({ ...prev, isLoading: false }))
 
-      return callId as string
+      return id as string
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to trigger delegation'
       console.error('❌ Delegation upgrade failed:', error)
@@ -366,7 +366,7 @@ export function useMetaMaskSmartAccount() {
         account,
         contractAddress: DELEGATOR_ADDRESS as Address,
         delegate: true
-      })
+      } as any)
 
       console.log('✅ Authorization signed:', authorization)
 
@@ -723,6 +723,8 @@ export function useMetaMaskSmartAccount() {
       error: null,
       account: null,
       balance: null,
+      isDelegated: false,
+      delegationAddress: null,
     })
   }, [])
 
